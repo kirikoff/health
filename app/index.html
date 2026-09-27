@@ -1,0 +1,1490 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Трекер</title>
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Трекер">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="icon" type="image/png" href="../icon-192.png">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #ffffff; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e7e6df; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --hover: rgba(11,11,11,0.05);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b; --good-text: #006300; --bad-text: #b3261e;
+  --good-bg: #e6f4e6; --warn-bg: #fdf3dc; --crit-bg: #fbe9e9; --none-bg: #efeee9;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
+  --top: env(safe-area-inset-top, 0px); --bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #8f8d86;
+    --grid: #2c2c2a; --axis: #45443f; --border: rgba(255,255,255,0.10); --hover: rgba(255,255,255,0.06);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #0a8f0a; --s7: #9085e9; --s8: #e66767;
+    --good-text: #3fc43f; --bad-text: #ef7b7b;
+    --good-bg: #173117; --warn-bg: #3a2f12; --crit-bg: #3b1a1a; --none-bg: #262624;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--page); color: var(--ink);
+  font: 16px/1.4 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+button { font: inherit; color: inherit; touch-action: manipulation; }
+[hidden] { display: none !important; }
+.wrap { max-width: 560px; margin: 0 auto; }
+
+/* шапка */
+.ab { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding-top: var(--top); }
+.ab-in { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; }
+.ab-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-back { border: 0; background: none; color: var(--s1); font-size: 17px; padding: 10px 8px 10px 0; margin-left: -2px; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
+.sync-host { display: flex; }
+.sync-chip { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 34px; }
+.sync-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.sync-chip[data-tone="ok"]::before { background: var(--good); }
+.sync-chip[data-tone="warn"]::before { background: var(--warn); }
+.sync-chip[data-tone="err"]::before { background: var(--crit); }
+.sync-chip[data-tone="busy"]::before { background: var(--s1); animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { opacity: .3; } to { opacity: 1; } }
+
+main { padding: 12px 16px calc(84px + var(--bottom)); }
+
+/* нижняя панель вкладок */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding-bottom: var(--bottom); }
+.tabbar-in { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 560px; margin: 0 auto; }
+.tab { border: 0; background: none; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); cursor: pointer; min-height: 54px; }
+.tab svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-current="page"] { color: var(--s1); font-weight: 600; }
+
+/* блоки */
+.sec { margin: 18px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--axis); flex: none; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.crit { background: var(--crit); } .dot.none { background: var(--axis); }
+
+/* готовность */
+.ready { display: flex; gap: 14px; align-items: center; }
+.light { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; font-weight: 700; color: #fff; flex: none; background: var(--muted); }
+.light.good { background: var(--good); } .light.warn { background: var(--warn); color: #0b0b0b; } .light.crit { background: var(--crit); }
+.ready-name { font-size: 20px; font-weight: 700; }
+.ready-adv { color: var(--ink2); font-size: 15px; }
+details.more { margin-top: 10px; }
+details.more summary { cursor: pointer; color: var(--s1); font-size: 14px; list-style: none; padding: 4px 0; }
+details.more summary::-webkit-details-marker { display: none; }
+.conds { margin-top: 6px; }
+.cond { display: flex; gap: 8px; padding: 7px 0; border-top: 1px solid var(--grid); font-size: 14px; }
+.cond b { font-variant-numeric: tabular-nums; }
+.mk { width: 18px; font-weight: 700; text-align: center; }
+.mk.ok { color: var(--good-text); } .mk.no { color: var(--bad-text); } .mk.na { color: var(--muted); }
+
+/* тренировка на «Сегодня» */
+.sess { border-left: 5px solid var(--c); }
+.sess-title { font-size: 18px; font-weight: 650; line-height: 1.25; }
+.sess-meta { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.act { border: 1px solid var(--border); background: var(--page); border-radius: 12px; min-height: 58px; padding: 6px 2px; font-size: 12.5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; }
+.act .ic { font-size: 20px; line-height: 1; }
+.act:active { transform: scale(.97); }
+.act.good[aria-pressed="true"] { background: var(--good-bg); border-color: var(--good); color: var(--good-text); font-weight: 600; }
+.act.none[aria-pressed="true"] { background: var(--none-bg); border-color: var(--ink2); font-weight: 600; }
+.act.crit[aria-pressed="true"] { background: var(--crit-bg); border-color: var(--crit); color: var(--bad-text); font-weight: 600; }
+.act:disabled { opacity: .45; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; padding: 5px 10px; border-radius: 999px; margin-top: 10px; }
+.status.good { background: var(--good-bg); color: var(--good-text); }
+.status.crit { background: var(--crit-bg); color: var(--bad-text); }
+.status.none { background: var(--none-bg); color: var(--ink2); }
+.status.warn { background: var(--warn-bg); color: var(--ink); }
+.linkbtn { border: 0; background: none; color: var(--s1); font-size: 15px; padding: 8px 0; cursor: pointer; }
+.garmin { font-size: 13px; color: var(--ink2); margin-top: 8px; }
+
+/* списки */
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 10px; }
+.li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--grid); width: 100%; text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; cursor: pointer; min-height: 56px; }
+.li:first-child { border-top: 0; }
+.li:active { background: var(--hover); }
+.li .bar { width: 4px; align-self: stretch; border-radius: 2px; background: var(--c); flex: none; }
+.li-title { font-size: 16px; font-weight: 550; }
+.li-sub { font-size: 13px; color: var(--muted); }
+.chev { color: var(--axis); font-size: 20px; }
+.pill { font-size: 12.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.good { background: var(--good-bg); color: var(--good-text); }
+.pill.crit { background: var(--crit-bg); color: var(--bad-text); }
+.pill.none { background: var(--none-bg); color: var(--ink2); }
+.pill.warn { background: var(--warn-bg); color: var(--ink); }
+.pill.todo { border: 1px dashed var(--axis); color: var(--ink2); }
+.quick { display: flex; gap: 6px; }
+.qbtn { width: 44px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--page); font-size: 18px; cursor: pointer; }
+.qbtn.ok { color: var(--good-text); } .qbtn.no { color: var(--bad-text); }
+
+/* неделя */
+.wk-head { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
+.wk-nav { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); font-size: 20px; cursor: pointer; }
+.wk-nav:disabled { opacity: .35; }
+.wk-t { flex: 1; text-align: center; }
+.wk-t b { font-size: 17px; display: block; }
+.meter { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 4px; background: var(--s1); }
+.meter.good > i { background: var(--good); } .meter.warn > i { background: var(--warn); } .meter.crit > i { background: var(--crit); }
+.day-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px; font-weight: 650; }
+.day-h .today { color: var(--s1); font-weight: 600; font-size: 13px; }
+.day-h .dt { color: var(--muted); font-weight: 400; font-size: 14px; }
+.day-h .dot { margin-left: auto; }
+.day-rest { padding: 4px 14px 12px; color: var(--muted); font-size: 14px; }
+.day-steps { padding: 0 14px 6px; color: var(--muted); font-size: 12.5px; }
+.day-steps.ok { color: var(--good-text); }
+.extra { padding: 4px 14px 10px; font-size: 13px; color: var(--muted); }
+
+/* экран тренировки */
+.detail-h { font-size: 24px; font-weight: 700; line-height: 1.2; margin: 4px 0 2px; }
+.stgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stbtn { min-height: 60px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.stbtn .ic { font-size: 20px; }
+.stbtn.good[aria-pressed="true"] { background: var(--good-bg); border-color: var(--good); color: var(--good-text); font-weight: 650; }
+.stbtn.none[aria-pressed="true"] { background: var(--none-bg); border-color: var(--ink2); font-weight: 650; }
+.stbtn.crit[aria-pressed="true"] { background: var(--crit-bg); border-color: var(--crit); color: var(--bad-text); font-weight: 650; }
+.stbtn:disabled { opacity: .45; }
+textarea.note { width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px; min-height: 90px; resize: vertical; }
+.saved { font-size: 13px; color: var(--muted); height: 18px; margin-top: 4px; }
+.chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.chip { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; min-height: 52px; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 2px; }
+.chip b { font-size: 15px; }
+.chip[aria-current="true"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.ex { margin: 6px 0 0; padding-left: 20px; font-size: 15px; }
+.ex li { margin: 4px 0; }
+.danger { width: 100%; min-height: 48px; border-radius: 14px; border: 1px solid var(--crit); color: var(--bad-text); background: transparent; font-size: 16px; cursor: pointer; margin-top: 8px; }
+.danger.armed { background: var(--crit); color: #fff; }
+.big { width: 100%; min-height: 52px; border-radius: 14px; border: 0; background: var(--s1); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+.ghost { width: 100%; min-height: 48px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); font-size: 16px; cursor: pointer; }
+
+/* прогресс */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; }
+.tile-l { font-size: 13px; color: var(--ink2); }
+.tile-v { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.tile-s { font-size: 12.5px; color: var(--muted); }
+.season { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.wk { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 6px 0 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
+.wk.cur { border-color: var(--s1); }
+.wk-bar { width: 10px; height: 40px; border-radius: 3px; background: var(--grid); display: flex; align-items: flex-end; overflow: hidden; }
+.wk-bar i { width: 100%; background: var(--s1); }
+.wk-bar i.good { background: var(--good); } .wk-bar i.warn { background: var(--warn); } .wk-bar i.crit { background: var(--crit); }
+.wk-n { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.badge { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--grid); opacity: .55; }
+.badge:first-child { border-top: 0; }
+.badge.on { opacity: 1; }
+.badge-i { font-size: 24px; line-height: 1; color: var(--muted); }
+.badge.on .badge-i { color: var(--s4); }
+.badge-n { font-weight: 650; }
+.badge-h { font-size: 13.5px; color: var(--ink2); }
+.badge-w { font-size: 12.5px; color: var(--muted); }
+.rules { font-size: 14px; }
+.rules div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--grid); }
+.rules div:first-child { border-top: 0; }
+
+/* сообщения */
+.toasts { position: fixed; left: 12px; right: 12px; top: calc(var(--top) + 60px); z-index: 50; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { max-width: 520px; width: 100%; background: var(--ink); color: var(--page); border-radius: 14px; padding: 11px 14px; box-shadow: var(--shadow); animation: tin .22s ease-out; transition: opacity .4s, transform .4s; }
+.toast.out { opacity: 0; transform: translateY(-8px); }
+.toast b { display: block; }
+.toast span { font-size: 13.5px; opacity: .85; }
+@keyframes tin { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; transition: none; } }
+.empty { text-align: center; padding: 28px 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="ab"><div class="ab-in wrap">
+  <button type="button" class="ab-back" id="back" hidden aria-label="Назад">‹ Назад</button>
+  <div class="ab-title" id="title">Сегодня</div>
+  <div class="sync-host" data-sync-host data-compact></div>
+</div></header>
+<main class="wrap" id="view"></main>
+<nav class="tabbar" aria-label="Разделы"><div class="tabbar-in">
+  <button type="button" class="tab" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Сегодня</button>
+  <button type="button" class="tab" data-tab="week"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>Неделя</button>
+  <button type="button" class="tab" data-tab="progress"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.8 3.9M17 6h2.5a2.5 2.5 0 0 1-2.8 3.9"/></svg>Прогресс</button>
+</div></nav>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+"use strict";
+(() => {
+  /* ======================================================================
+     Мобильное приложение-трекер. Общая логика (данные, план, очки, серии,
+     синхронизация) вставлена из dashboard.html при сборке — не править здесь.
+     ====================================================================== */
+  const DAY = 86400000;
+  const pad2 = (n) => String(n).padStart(2, '0');
+  function fmtDate(t, withTime) {
+    const d = new Date(t);
+    const base = `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`;
+    return withTime ? `${base} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}` : base;
+  }
+  function h(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  const LS_KEY = 'health-dashboard-v1';
+
+/* ---- общий блок «u» из dashboard.html, вставлен при сборке ---- */
+const U = {
+  num(x) {
+    if (x === null || x === undefined || x === '') return null;
+    if (typeof x === 'number') return Number.isFinite(x) ? x : null;
+    if (typeof x === 'boolean') return x ? 1 : 0;
+    const s = String(x).replace(/[\s  ]/g, '').replace(',', '.');
+    return /^-?\d+(\.\d+)?$/.test(s) ? parseFloat(s) : null;
+  },
+  pos(x) { const n = U.num(x); return n !== null && n > 0 ? n : null; },
+  // Дата/время -> { date: 'YYYY-MM-DD', t: ms (наивное локальное время, хранится как UTC) }
+  when(x, date1904 = false) {
+    if (x === null || x === undefined || x === '') return null;
+    if (typeof x === 'number') {
+      if (!Number.isFinite(x) || x < 1) return null;
+      const t = Math.round(((date1904 ? x + 1462 : x) - 25569) * 86400000);
+      return { date: new Date(t).toISOString().slice(0, 10), t };
+    }
+    const s = String(x).trim();
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (m) return U._mk(+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (m) return U._mk(+m[3], +m[2], +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+    return null;
+  },
+  _mk(y, mo, d, h, mi, s) {
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    const t = Date.UTC(y, mo - 1, d, h, mi, s);
+    return { date: new Date(t).toISOString().slice(0, 10), t };
+  },
+  dayMs(date) { const [y, m, d] = date.split('-').map(Number); return Date.UTC(y, m - 1, d); },
+  msToDate(t) { return new Date(t).toISOString().slice(0, 10); },
+};
+
+/* ---- общий блок «dict» из dashboard.html, вставлен при сборке ---- */
+  /* ------------------------------------------------------------ словари */
+  const RU = {
+    level: { PRIME: 'Отличная', HIGH: 'Высокая', MODERATE: 'Средняя', LOW: 'Низкая', POOR: 'Очень низкая', NONE: 'Нет данных' },
+    levelTone: { PRIME: 'good', HIGH: 'good', MODERATE: 'warn', LOW: 'serious', POOR: 'crit', NONE: 'none' },
+    hrv: { IN_RANGE: 'в базовом диапазоне', BELOW: 'ниже базового диапазона', ABOVE: 'выше базового диапазона', ONBOARDING: 'калибровка', LOW: 'низкий', UNBALANCED: 'несбалансирован', POOR: 'низкий', BALANCED: 'сбалансирован' },
+    status: { PRODUCTIVE: 'Продуктивный', MAINTAINING: 'Поддержание', RECOVERY: 'Восстановление', DETRAINING: 'Потеря формы', UNPRODUCTIVE: 'Непродуктивный', STRAINED: 'Перенапряжение', OVERREACHING: 'Перегрузка', PEAKING: 'Пик формы', NO_STATUS: 'Нет статуса' },
+    acwr: { LOW: 'низкая', OPTIMAL: 'оптимальная', HIGH: 'высокая', VERY_HIGH: 'очень высокая', NONE: '—' },
+    factorFb: { EXCELLENT: 'отлично', VERY_GOOD: 'очень хорошо', GOOD: 'хорошо', MODERATE: 'умеренно', POOR: 'слабо', VERY_POOR: 'очень слабо', NONE: '—' },
+    fb: {
+      WELL_RECOVERED: 'Хорошо восстановились', LISTEN_TO_YOUR_BODY: 'Прислушайтесь к организму', GOOD_SLEEP_HISTORY: 'Хороший сон в последние дни',
+      FIND_TIME_TO_RELAX: 'Найдите время расслабиться', EXCELLENT_RECOVERY: 'Отличное восстановление', WELL_RESTED: 'Хорошо отдохнули',
+      BALANCE_STRESS_AND_RECOVERY: 'Балансируйте стресс и восстановление', RECOVERED_AND_READY: 'Восстановились и готовы',
+      HIGH_RECOVERY_NEEDS: 'Высокая потребность в восстановлении', LET_YOUR_BODY_RECOVER: 'Дайте организму восстановиться',
+      TIME_TO_SLOW_DOWN: 'Время сбавить темп', RESTED_AND_READY: 'Отдохнули и готовы', TAKE_IT_EASY: 'Не перегружайтесь',
+      GOOD_SLEEP_LAST_NIGHT: 'Хороший сон прошлой ночью', FOCUS_ON_ENERGY_LEVELS: 'Следите за уровнем энергии', READY_FOR_ACTION: 'Готовы к нагрузке',
+      FOCUS_ON_SLEEP_PATTERNS: 'Обратите внимание на режим сна', GOOD_RECOVERY: 'Хорошее восстановление', FOCUS_ON_RECOVERY: 'Сфокусируйтесь на восстановлении',
+      BALANCE_YOUR_TRAINING_LOAD: 'Сбалансируйте нагрузку', FOCUS_ON_SLEEP_QUALITY: 'Обратите внимание на качество сна', TIME_TO_RECHARGE: 'Время перезарядиться',
+      RECOVERY_IN_PROGRESS: 'Идёт восстановление', WORKING_HARD: 'Много работаете', LOW_RECOVERY_NEEDS: 'Низкая потребность в восстановлении',
+      BOOSTED_BY_LIGHTER_TRAINING: 'Помогла лёгкая нагрузка', BOOSTED_BY_GOOD_SLEEP: 'Помог хороший сон', PRIMED_AND_READY: 'В отличной форме',
+      ENERGIZED_BY_GOOD_SLEEP: 'Заряжены хорошим сном', WELL_RESTED_AND_RECOVERED: 'Отдохнули и восстановились', BOOSTED_BY_NAPPING: 'Помог дневной сон',
+      IMPROVED_BY_NAPPING: 'Улучшилось после дневного сна', AT_YOUR_BEST: 'На пике', ENERGIZING_NAP: 'Бодрящий дневной сон', READY_TO_GO: 'Готовы',
+    },
+    act: {
+      squash: 'Сквош', tennis: 'Теннис', padel: 'Падел', badminton: 'Бадминтон', table_tennis: 'Настольный теннис', pickleball: 'Пиклбол',
+      walking: 'Ходьба', hiking: 'Хайкинг', running: 'Бег', treadmill_running: 'Беговая дорожка', trail_running: 'Трейл',
+      strength_training: 'Силовая', hiit: 'ВИИТ', indoor_rowing: 'Гребной тренажёр', indoor_cycling: 'Велотренажёр', elliptical: 'Эллипс',
+      floor_climbing: 'Подъём по лестнице', stair_climbing: 'Лестница', yoga: 'Йога', pilates: 'Пилатес', breathwork: 'Дыхательная практика',
+      resort_skiing: 'Горные лыжи', backcountry_skiing: 'Бэккантри', cross_country_skiing: 'Беговые лыжи', resort_snowboarding: 'Сноуборд',
+      lap_swimming: 'Плавание (бассейн)', open_water_swimming: 'Открытая вода', cycling: 'Велосипед', road_biking: 'Шоссе', mountain_biking: 'МТБ', other: 'Другое',
+    },
+  };
+  const GROUPS = [
+    { key: 'racket', label: 'Ракетки', color: 'var(--s1)', types: ['squash', 'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'racquetball'] },
+    { key: 'gym', label: 'Зал', color: 'var(--s2)', types: ['strength_training', 'hiit', 'indoor_rowing', 'indoor_cycling', 'elliptical', 'floor_climbing', 'stair_climbing', 'treadmill_running', 'cardio', 'fitness_equipment'] },
+    { key: 'walk', label: 'Ходьба', color: 'var(--s3)', types: ['walking', 'hiking', 'running', 'trail_running', 'casual_walking', 'speed_walking'] },
+    { key: 'swim', label: 'Плавание', color: 'var(--s4)', types: ['lap_swimming', 'open_water_swimming', 'swimming'] },
+    { key: 'ski', label: 'Лыжи', color: 'var(--s5)', types: ['resort_skiing', 'backcountry_skiing', 'cross_country_skiing', 'resort_snowboarding', 'skate_skiing'] },
+    { key: 'other', label: 'Прочее', color: 'var(--s6)', types: [] },
+  ];
+  /* ------------------------------------------------------------ план тренировок */
+  // Параметров плана в коде нет: они приходят из данных пользователя
+  // (training\plan.json → «Загрузить выгрузки» → трекер → Google Диск).
+  const EMPTY_PLAN = { name: '', start: null, end: null, weightFrom: null, weightTo: null, zone2: [0, 0],
+    week: { strength: 0, squash: 0, swim: 0, z2: 0 }, weeks: [], schedule: [], finalWeek: [], templates: {} };
+  let PLAN = { ...EMPTY_PLAN };
+  function setPlan(p) {
+    if (!p || !p.start || !Array.isArray(p.weeks)) { PLAN = { ...EMPTY_PLAN }; return; }
+    PLAN = { ...EMPTY_PLAN, ...p, start: U.dayMs(p.start), end: U.dayMs(p.end), weeks: p.weeks.map((w, i) => ({ n: i + 1, ...w })) };
+  }
+  const hasPlan = () => !!PLAN.start;
+  const planName = () => PLAN.name || 'План тренировок';
+  // Правило готовности из плана: HRV в норме, BB ≥ 60, сон ≥ 70, ACWR ≤ 1,3
+  const RULE = { bb: 60, sleep: 70, acwr: 1.3 };
+  const HRV_OK = ['IN_RANGE', 'BALANCED'];
+  const HRV_LOW = ['BELOW', 'LOW', 'POOR', 'UNBALANCED'];
+  // ACWR для утреннего решения — на конец предыдущего дня (дневное значение Garmin уже включает сегодняшнюю тренировку)
+  function verdict(d, prev) {
+    if (!d) return null;
+    const hs = d.hrvStatus;
+    const acwr = prev && d.t - prev.t === DAY && prev.acwr != null ? prev.acwr : d.acwr;
+    const conds = [
+      { key: 'hrv', label: 'Статус HRV', need: 'в базовом диапазоне',
+        ok: hs ? HRV_OK.includes(hs) : null, value: hs ? (RU.hrv[hs] || hs) + (d.hrv ? `, ${f0(d.hrv)} мс` : '') : null, low: HRV_LOW.includes(hs) },
+      { key: 'bb', label: 'Body Battery утром (максимум дня)', need: `≥ ${RULE.bb}`,
+        ok: d.bbMax != null ? d.bbMax >= RULE.bb : null, value: d.bbMax != null ? f0(d.bbMax) : null },
+      { key: 'sleep', label: 'Оценка сна', need: `≥ ${RULE.sleep}`,
+        ok: d.sleepScore != null ? d.sleepScore >= RULE.sleep : null, value: d.sleepScore != null ? f0(d.sleepScore) : null },
+      { key: 'acwr', label: 'ACWR на вечер вчера', need: `≤ ${N1.format(RULE.acwr)}`,
+        ok: acwr != null ? acwr <= RULE.acwr + 1e-9 : null, value: acwr != null ? N1.format(acwr) : null },
+    ];
+    // ONBOARDING (калибровка HRV) — как «нет данных»
+    if (hs === 'ONBOARDING') { conds[0].ok = null; }
+    const fails = conds.filter(c => c.ok === false).length;
+    const missing = conds.filter(c => c.ok === null).length;
+    if (missing === 4) return null;
+    let tone, label, advice;
+    if (conds[0].low || fails >= 2) { tone = 'crit'; label = 'Красный'; advice = 'Отдых или лёгкое движение'; }
+    else if (fails === 1) { tone = 'warn'; label = 'Жёлтый'; advice = 'Интенсивное заменить на зону 2'; }
+    else { tone = 'good'; label = 'Зелёный'; advice = 'По плану'; }
+    return { t: d.t, tone, label, advice, conds, fails, missing, partial: missing > 0 };
+  }
+  const verdicts = (daily) => daily.map((d, i) => verdict(d, daily[i - 1])).filter(Boolean);
+
+  /* ------------------------------------------------------------ аномальные тренировки */
+  // Скорость выше физически правдоподобной для вида — скорее всего, часы писали транспорт.
+  const SPEED_CAP = [
+    { types: ['walking', 'casual_walking', 'speed_walking', 'hiking'], kmh: 10, label: 'ходьбы' },
+    { types: ['running', 'trail_running', 'treadmill_running'], kmh: 25, label: 'бега' },
+    { types: ['lap_swimming', 'open_water_swimming', 'swimming'], kmh: 7, label: 'плавания' },
+    { types: ['cycling', 'road_biking', 'mountain_biking'], kmh: 60, label: 'велосипеда' },
+  ];
+  function anomalyOf(a) {
+    if (!a.distKm || !a.durMin) return null;
+    const kmh = a.distKm / (a.durMin / 60);
+    const cap = SPEED_CAP.find(c => c.types.includes(a.type));
+    if (cap && kmh > cap.kmh) return `${f1(kmh)} км/ч — выше порога ${cap.kmh} км/ч для ${cap.label}`;
+    return null;
+  }
+  // overrides: { [activityId]: 'include' | 'exclude' } — ручные решения, сохраняются в браузере
+  function isExcluded(a) {
+    const o = (state.data.overrides || {})[a.id];
+    if (o === 'include') return false;
+    if (o === 'exclude') return true;
+    return !!anomalyOf(a);
+  }
+
+  const groupOf = (type) => (GROUPS.find(g => g.types.includes(type)) || GROUPS[GROUPS.length - 1]).key;
+  const actName = (a) => RU.act[a.type] || a.type.replace(/_/g, ' ');
+  const fbText = (code) => (code && RU.fb[code]) || (code && code !== 'UNKNOWN' ? code.toLowerCase().replace(/_/g, ' ') : '');
+
+  /* ------------------------------------------------------------ формат */
+  const nf = (d) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+  const N0 = nf(0), N1 = nf(1), N2 = nf(2);
+  const f0 = (v) => (v == null ? '—' : N0.format(v));
+  const f1 = (v) => (v == null ? '—' : N1.format(v));
+  const hm = (min) => {
+    if (min == null) return '—';
+    const m = Math.round(min);
+    return m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч ${String(m % 60).padStart(2, '0')} мин`;
+  };
+  const TE = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const hFmt = (v) => N1.format(v);
+  const dshort = (t) => fmtDate(t);
+
+/* ---- общий блок «state» из dashboard.html, вставлен при сборке ---- */
+  /* ------------------------------------------------------------ состояние */
+  const blank = () => ({
+    garmin: { days: {}, activities: {}, files: [] },
+    body: { rows: {}, files: [] },
+    bp: { rows: {}, files: [] },
+    labs: { rows: {}, files: [] },
+    overrides: {},
+  });
+  const state = { data: blank(), period: 90 };
+  window.__health = state; // для проверки
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      if (obj && obj.data) {
+        state.data = Object.assign(blank(), obj.data);
+        if (obj.period) state.period = obj.period;
+      }
+    } catch (e) { console.warn('Не удалось прочитать сохранённые данные', e); }
+  }
+  // Отметка времени изменения данных (выгрузки, исключения тренировок) — для слияния при синхронизации
+  function touchData() { state.data.dataAt = new Date().toISOString(); dataDirty = true; }
+  let dataDirty = false;
+  function save() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data }));
+    } catch (e) { console.warn('Не удалось сохранить', e); return false; }
+    if (dataDirty) { dataDirty = false; Sync.changed(); }
+    return true;
+  }
+
+
+/* ---- общий блок «tracker» из dashboard.html, вставлен при сборке ---- */
+  /* ============================================================================
+     tracker — трекер тренировок: план недели по дням, отметки, правка плана, очки,
+     серии, джокеры и достижения. Хранится в браузере отдельно от данных Garmin
+     (ключ health-tracker-v1), резервная копия — JSON-файл.
+     ========================================================================== */
+  const TR_KEY = 'health-tracker-v1';
+  // Типы тренировок. Задания и упражнения — в плане пользователя (PLAN.templates)
+  const TPL = {
+    A: { kind: 'strength', title: 'Силовая A', slot: 'am', time: 'утро', pts: 10 },
+    B: { kind: 'strength', title: 'Силовая B', slot: 'am', time: 'утро', pts: 10 },
+    squash_short: { kind: 'squash', title: 'Сквош, короткий', slot: 'pm', time: 'вечер', pts: 8 },
+    squash_long: { kind: 'squash', title: 'Сквош, длинный', slot: 'pm', time: 'день', pts: 10 },
+    swim: { kind: 'zone2', title: 'Плавание, зона 2', slot: 'am', time: 'утро', pts: 8 },
+    cardio: { kind: 'zone2', title: 'Кардио, зона 2', slot: 'am', time: 'утро', pts: 8 },
+    pool_easy: { kind: 'recovery', title: 'Бассейн, восстановление', slot: 'am', time: 'утро', pts: 5 },
+    check: { kind: 'check', title: 'Контроль: замеры', slot: 'am', time: 'утро', pts: 5 },
+    other: { kind: 'other', title: 'Другое', slot: 'am', time: '', pts: 5 },
+  };
+  const tplInfo = (k) => ({ detail: '', ...(TPL[k] || TPL.other), ...((PLAN.templates || {})[k] || {}) });
+  const KIND = {
+    strength: { label: 'Силовая', color: 'var(--s2)', garmin: ['strength_training', 'hiit'] },
+    squash: { label: 'Сквош', color: 'var(--s1)', garmin: ['squash', 'tennis', 'padel', 'badminton'] },
+    zone2: { label: 'Зона 2', color: 'var(--s3)', garmin: ['lap_swimming', 'open_water_swimming', 'indoor_cycling', 'cycling', 'walking', 'hiking', 'treadmill_running', 'elliptical', 'indoor_rowing', 'stair_climbing', 'floor_climbing', 'running'] },
+    recovery: { label: 'Восстановление', color: 'var(--s4)', garmin: ['lap_swimming', 'open_water_swimming'] },
+    check: { label: 'Контроль', color: 'var(--s7)', garmin: [] },
+    other: { label: 'Другое', color: 'var(--s6)', garmin: [] },
+  };
+  const ST = {
+    done: { label: 'Выполнено', short: '✓ выполнено', tone: 'good' },
+    replaced: { label: 'Заменено на зону 2', short: '↺ заменено', tone: 'good' },
+    rest: { label: 'Отдых по готовности', short: '☾ отдых', tone: 'none' },
+    skipped: { label: 'Пропущено', short: '✕ пропуск', tone: 'crit' },
+  };
+  const BONUS_WEEK = 20;   // неделя 100 %
+  const BONUS_STEPS = 2;   // день с нормой шагов (по Garmin)
+  const WEEK_OK = 0.8;     // неделя засчитана в серию
+  const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const WD_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+  const iso = (t) => U.msToDate(t);
+  const todayMs = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
+
+  // План по умолчанию: типовая неделя (PLAN.schedule) × недели плана; без плана — пустой трекер
+  function buildDefaultPlan() {
+    const empty = { v: 1, start: null, weeks: 0, sessions: {}, log: {}, tomb: {}, updatedAt: new Date().toISOString() };
+    if (!hasPlan()) return empty;
+    const sessions = {};
+    PLAN.weeks.forEach((w, i) => {
+      const m = PLAN.start + i * 7 * DAY;
+      const items = [...(PLAN.schedule || []), ...(i === PLAN.weeks.length - 1 ? PLAN.finalWeek || [] : [])];
+      for (const it of items) {
+        const b = tplInfo(it.tpl);
+        const t = m + it.day * DAY;
+        const dur = typeof it.dur === 'string' ? w[it.dur] : it.dur;
+        let detail = b.detail || '';
+        if (it.detail === 'sets') detail = `Подходы: ${w.sets}`;
+        else if (it.detail === 'minutes') detail = `${dur} мин. ${b.detail || ''}`.trim();
+        const id = `${iso(t)}-${b.slot}-${it.tpl}`;
+        sessions[id] = { id, date: iso(t), tpl: it.tpl, kind: b.kind, title: b.title, slot: b.slot, time: b.time, dur: dur ?? null, detail, optional: !!it.optional };
+      }
+    });
+    return { ...empty, start: iso(PLAN.start), weeks: PLAN.weeks.length, sessions };
+  }
+
+  let TR = null;
+  function trLoad() {
+    try { const raw = localStorage.getItem(TR_KEY); if (raw) { const o = JSON.parse(raw); if (o && o.sessions) TR = o; } } catch (e) { /* нет хранилища */ }
+    setPlan(TR && TR.plan);
+    if (!TR) TR = buildDefaultPlan();
+    TR.log = TR.log || {};
+    TR.tomb = TR.tomb || {};
+  }
+  // Загрузка плана из training\plan.json: план хранится в трекере и синхронизируется через Google Диск
+  function importPlan(obj) {
+    const p = obj.plan;
+    if (!p || !p.start || !Array.isArray(p.weeks) || !p.weeks.length) throw new Error('В файле нет плана (start, weeks)');
+    const now = new Date().toISOString();
+    TR.plan = { ...p, mt: now };
+    setPlan(TR.plan);
+    let built = 0;
+    if (!TR.start || !Object.keys(TR.sessions || {}).length) {
+      const fresh = buildDefaultPlan();
+      Object.values(fresh.sessions).forEach(x => { x.mt = now; });
+      TR.start = fresh.start; TR.weeks = fresh.weeks; TR.sessions = { ...fresh.sessions, ...(TR.sessions || {}) };
+      built = Object.keys(fresh.sessions).length;
+    }
+    trSave();
+    return `план «${p.name || 'без названия'}»: ${p.weeks.length} нед. с ${fmtDate(U.dayMs(p.start))}${built ? `, создано тренировок: ${built}` : ', тренировки и отметки сохранены'}`;
+  }
+  // «Надгробия» удалённых отметок и тренировок — чтобы синхронизация не вернула их из другой копии
+  function tomb(key) { (TR.tomb || (TR.tomb = {}))[key] = new Date().toISOString(); }
+  function trSave(silent) {
+    TR.updatedAt = new Date().toISOString();
+    let ok = true;
+    try { localStorage.setItem(TR_KEY, JSON.stringify(TR)); } catch (e) { ok = false; }
+    if (!silent) Sync.changed();
+    return ok;
+  }
+  trLoad();
+
+  const trStart = () => (TR.start ? U.dayMs(TR.start) : 0);
+  const hasTracker = () => !!TR.start;
+  const weekOf = (date) => Math.floor((U.dayMs(date) - trStart()) / (7 * DAY));   // 0..11
+  const weekStart = (i) => trStart() + i * 7 * DAY;
+  const sessionsOfWeek = (i) => Object.values(TR.sessions).filter(s => weekOf(s.date) === i).sort((a, b) => a.date.localeCompare(b.date) || (a.slot === b.slot ? 0 : a.slot === 'am' ? -1 : 1));
+  const sessPts = (s) => (TPL[s.tpl] || TPL.other).pts;
+  const covered = (s) => { const l = TR.log[s.id]; return !!l && (l.st === 'done' || l.st === 'replaced' || l.st === 'rest' || l.joker); };
+
+  // Garmin: тренировки и шаги за день (из загруженных данных дашборда)
+  function garminDay(X, date) {
+    const acts = X ? X.acts.filter(a => a.date === date) : [];
+    const d = state.data.garmin.days[date];
+    return { acts, steps: d && d.steps != null ? d.steps : null };
+  }
+  // Сопоставление: каждой сессии дня — первая подходящая по виду тренировка Garmin
+  function matchDay(X, date) {
+    const { acts } = garminDay(X, date);
+    const used = new Set(), map = {};
+    const ss = Object.values(TR.sessions).filter(s => s.date === date);
+    for (const s of ss) {
+      const types = (KIND[s.kind] || KIND.other).garmin;
+      const a = acts.find(x => !used.has(x.id) && types.includes(x.type));
+      if (a) { used.add(a.id); map[s.id] = a; }
+    }
+    return { map, extra: acts.filter(a => !used.has(a.id)) };
+  }
+
+  // Статистика недели
+  function weekStats(i, X) {
+    const ss = sessionsOfWeek(i);
+    const req = ss.filter(s => !s.optional);
+    const today = todayMs();
+    const ended = weekStart(i) + 7 * DAY <= today;
+    const cov = req.filter(covered).length;
+    let pts = 0;
+    // тренировка вне плана (extra) очков не даёт: очки — за соблюдение плана, не за объём
+    for (const s of ss) { const l = TR.log[s.id]; if (!s.extra && l && (l.st === 'done' || l.st === 'replaced' || l.st === 'rest')) pts += sessPts(s); }
+    const full = req.length > 0 && cov === req.length;
+    if (full) pts += BONUS_WEEK;
+    const w = PLAN.weeks[i];
+    let stepDays = 0;
+    for (let k = 0; k < 7; k++) {
+      const t = weekStart(i) + k * DAY;
+      if (t > today) break;
+      const st = garminDay(X, iso(t)).steps;
+      if (w && st != null && st >= w.steps) stepDays++;
+    }
+    pts += stepDays * BONUS_STEPS;
+    const maxPts = ss.filter(s => !s.extra).reduce((a, s) => a + sessPts(s), 0) + BONUS_WEEK + 7 * BONUS_STEPS;
+    const due = req.filter(s => U.dayMs(s.date) <= today).length;
+    const pct = req.length ? cov / req.length : 0;
+    return { ss, req, cov, due, pct, pts, maxPts, full, ended, ok: (ended || full) && pct >= WEEK_OK - 1e-9, stepDays };
+  }
+  function seasonStats(X) {
+    const weeks = [];
+    for (let i = 0; i < TR.weeks; i++) weeks.push(weekStats(i, X));
+    const pts = weeks.reduce((a, w) => a + w.pts, 0);
+    const maxPts = weeks.reduce((a, w) => a + w.maxPts, 0);
+    // серия: подряд засчитанные недели, считая от последней завершённой (текущая, если уже закрыта на 100 %)
+    let cur = 0, best = 0, run = 0;
+    for (const w of weeks) {
+      if (w.ok) { run++; best = Math.max(best, run); } else if (w.ended) run = 0;
+    }
+    for (let i = weeks.length - 1; i >= 0; i--) {
+      const w = weeks[i];
+      if (!w.ended && !w.ok) continue;       // текущая/будущая неделя серию не рвёт
+      if (w.ok) cur++; else break;
+    }
+    const level = Math.floor(pts / 100) + 1;
+    return { weeks, pts, maxPts, streak: cur, best, level, toNext: 100 - (pts % 100) };
+  }
+  // Джокеры: 1 на календарный месяц
+  function jokersLeft(month) {
+    const used = Object.entries(TR.log).filter(([id, l]) => l.joker && TR.sessions[id] && TR.sessions[id].date.slice(0, 7) === month).length;
+    return Math.max(0, 1 - used);
+  }
+
+  /* ------------------------------------------------------------ достижения */
+  function badges(X, S, vByDate) {
+    if (!hasTracker()) return [];
+    const all = Object.values(TR.sessions).sort((a, b) => a.date.localeCompare(b.date));
+    const logged = all.filter(s => TR.log[s.id]);
+    const doneList = all.filter(s => TR.log[s.id] && TR.log[s.id].st === 'done');
+    const out = [];
+    const B = (id, name, how, earned, when, prog) => out.push({ id, name, how, earned: !!earned, when, prog });
+    B('first', 'Первый шаг', 'Первая выполненная тренировка', doneList.length > 0, doneList[0] && doneList[0].date);
+    const perfect = S.weeks.findIndex(w => w.full);
+    B('perfect', 'Идеальная неделя', 'Все обязательные тренировки недели закрыты', perfect >= 0, perfect >= 0 ? iso(weekStart(perfect) + 6 * DAY) : null);
+    // 4 недели подряд без пропуска силовых
+    let run = 0, ironAt = null;
+    S.weeks.forEach((w, i) => {
+      const st = w.ss.filter(s => s.kind === 'strength');
+      if (!w.ended) return;
+      const ok = st.length > 0 && st.every(s => covered(s) && TR.log[s.id].st !== 'rest');
+      run = ok ? run + 1 : 0;
+      if (run >= 4 && !ironAt) ironAt = iso(weekStart(i) + 6 * DAY);
+    });
+    B('iron', 'Стальной ритм', '4 недели подряд без пропуска силовых', ironAt, ironAt, ironAt ? null : `${run} из 4`);
+    // Разгрузка выдержана: разгрузочная неделя закрыта и минут по Garmin не больше плана +10 %
+    let deloadAt = null;
+    S.weeks.forEach((w, i) => {
+      if (deloadAt || !w.ended || !/разгрузк/i.test((PLAN.weeks[i] || {}).phase || '')) return;
+      const planMin = w.ss.reduce((a, s) => a + (s.dur || 0), 0);
+      const acts = X ? X.acts.filter(a => weekOf(a.date) === i) : [];
+      if (!acts.length) return;
+      const fact = acts.reduce((a, x) => a + (x.durMin || 0), 0);
+      if (w.pct >= WEEK_OK && fact <= planMin * 1.1) deloadAt = iso(weekStart(i) + 6 * DAY);
+    });
+    B('deload', 'Разгрузка выдержана', 'Разгрузочная неделя закрыта, а минут тренировок по Garmin не больше плана +10 %', deloadAt, deloadAt);
+    // 7 дней подряд норма шагов
+    let sRun = 0, sBest = 0, stepsAt = null;
+    for (let t = trStart(); t <= Math.min(todayMs(), weekStart(TR.weeks) - DAY); t += DAY) {
+      const w = PLAN.weeks[weekOf(iso(t))];
+      const st = garminDay(X, iso(t)).steps;
+      sRun = w && st != null && st >= w.steps ? sRun + 1 : 0;
+      sBest = Math.max(sBest, sRun);
+      if (sRun >= 7 && !stepsAt) stepsAt = iso(t);
+    }
+    B('steps', 'Шагомер', '7 дней подряд норма шагов недели (по Garmin)', stepsAt, stepsAt, stepsAt ? null : `лучшая серия ${sBest} из 7`);
+    const honest = logged.find(s => TR.log[s.id].st === 'rest' && vByDate.get(s.date) && vByDate.get(s.date).tone === 'crit');
+    B('honest', 'Честный отдых', 'Отдых в красный по готовности день (по данным Garmin)', honest, honest && honest.date);
+    const smart = logged.find(s => TR.log[s.id].st === 'replaced');
+    B('smart', 'Умная замена', 'Интенсивное заменено на зону 2 по готовности', smart, smart && smart.date);
+    const longs = doneList.filter(s => s.tpl === 'squash_long');
+    B('marathon', 'Марафон на корте', '5 длинных сквошей', longs.length >= 5, longs[4] && longs[4].date, longs.length < 5 ? `${longs.length} из 5` : null);
+    B('streak4', 'Серия 4', '4 засчитанные недели подряд (≥ 80 % плана)', S.best >= 4, null, S.best < 4 ? `лучшая ${S.best} из 4` : null);
+    B('streak8', 'Серия 8', '8 засчитанных недель подряд', S.best >= 8, null, S.best < 8 ? `лучшая ${S.best} из 8` : null);
+    const allEnded = S.weeks.every(w => w.ended);
+    const okN = S.weeks.filter(w => w.ok).length;
+    B('season', 'Сезон закрыт', `Все ${TR.weeks} недель пройдены, не меньше 10 засчитанных`, allEnded && okN >= 10, allEnded ? TR.sessions && iso(weekStart(TR.weeks) - DAY) : null, `${okN} засчитано`);
+    return out;
+  }
+
+  /* ------------------------------------------------------------ правка плана */
+  const PAIR = { A: 'squash_short', squash_short: 'A' };
+  // Перенос с правилом плана: силовая A и короткий сквош — в один день; плавание встаёт на освободившийся день
+  function moveSession(id, newDate) {
+    const s = TR.sessions[id];
+    if (!s || s.date === newDate) return [];
+    const old = s.date, msgs = [];
+    const mt = new Date().toISOString();
+    s.date = newDate; s.mt = mt;
+    const ptpl = PAIR[s.tpl];
+    if (ptpl) {
+      const p = Object.values(TR.sessions).find(x => x.tpl === ptpl && x.date === old);
+      if (p) {
+        p.date = newDate; p.mt = mt; msgs.push(`${p.title} переехала вместе с ней`);
+        const sw = Object.values(TR.sessions).find(x => x.tpl === 'swim' && x.date === newDate);
+        if (sw) { sw.date = old; sw.mt = mt; msgs.push(`${sw.title} — на ${WD[(U.dayMs(old) / DAY + 3) % 7]} ${fmtDate(U.dayMs(old)).slice(0, 5)}`); }
+      }
+    }
+    return msgs;
+  }
+  function moveFuture(id, offsetDays) {
+    const s = TR.sessions[id];
+    const w0 = weekOf(s.date);
+    const wd = ((U.dayMs(s.date) - offsetDays * DAY) - trStart()) / DAY % 7;   // исходный день недели
+    let n = 0;
+    for (let i = w0 + 1; i < TR.weeks; i++) {
+      const t = Object.values(TR.sessions).find(x => x.tpl === s.tpl && weekOf(x.date) === i && ((U.dayMs(x.date) - trStart()) / DAY) % 7 === wd && !TR.log[x.id]);
+      if (t) { moveSession(t.id, iso(U.dayMs(t.date) + offsetDays * DAY)); n++; }
+    }
+    return n;
+  }
+
+
+/* ---- общий блок «sync» из dashboard.html, вставлен при сборке ---- */
+  /* ============================================================================
+     sync — синхронизация через Google Диск. Работает только на сайте (https);
+     локальный файл (file://) живёт как раньше, только с данными в браузере.
+     Файл: «Health dashboard/health-data.json.gz» в Google Диске пользователя.
+     Доступ drive.file: приложение видит только файлы, созданные им самим.
+     ========================================================================== */
+  const Sync = (() => {
+    const CLIENT_ID = '637285603446-16ge7m2ut7mlshalu1ctnhkhl7pdh0b2.apps.googleusercontent.com';
+    const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+    const FOLDER = 'Health dashboard';
+    const FILE = 'health-data.json.gz';
+    const LS_SYNC = 'health-sync-v1';
+    const API = 'https://www.googleapis.com/drive/v3';
+    const UP = 'https://www.googleapis.com/upload/drive/v3';
+    const enabled = location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+
+    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
+    try { Object.assign(st, JSON.parse(localStorage.getItem(LS_SYNC) || '{}'), { busy: false, status: 'off', msg: '' }); } catch (e) { /* нет хранилища */ }
+    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
+
+    let tokenClient = null, gisReady = null, timer = null;
+    const hasToken = () => st.token && Date.now() < st.exp - 60000;
+
+    /* ---------------- UI: значок в верхней панели */
+    let chip = null;
+    function ui() {
+      if (!enabled) return;
+      if (!chip) {
+        chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'btn sync-chip';
+        chip.onclick = () => (hasToken() ? syncNow() : signIn());
+        const host = document.querySelector('[data-sync-host]') || document.querySelector('.topbar .actions');
+        host.insertBefore(chip, host.firstChild);
+      }
+      const t = st.lastSync ? new Date(st.lastSync).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+      const d = st.lastSync ? new Date(st.lastSync).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
+      const today = st.lastSync && new Date(st.lastSync).toDateString() === new Date().toDateString();
+      let text, tone;
+      if (st.busy) { text = 'Синхронизация…'; tone = 'busy'; }
+      else if (st.status === 'error') { text = st.msg || 'Ошибка синхронизации'; tone = 'err'; }
+      else if (st.status === 'offline') { text = st.pending ? 'Нет сети — изменения ждут' : 'Нет сети'; tone = 'warn'; }
+      else if (!hasToken()) { text = st.consented ? (st.pending ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = st.pending ? 'warn' : 'idle'; }
+      else if (st.pending) { text = 'Изменения ждут отправки'; tone = 'warn'; }
+      else { text = st.lastSync ? `Синхронизировано ${today ? t : d + ' ' + t}` : 'Google Диск подключён'; tone = 'ok'; }
+      const compact = chip.parentNode && chip.parentNode.hasAttribute('data-compact');
+      if (compact) text = { busy: '…', err: 'Ошибка', warn: st.status === 'offline' ? 'Нет сети' : 'Отправка', ok: t || 'OK', idle: st.consented ? 'Синхр.' : 'Войти' }[tone] || text;
+      chip.textContent = text;
+      chip.dataset.tone = tone;
+      chip.title = 'Синхронизация с Google Диском: файл «Health dashboard/health-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
+    }
+
+    /* ---------------- вход Google (Google Identity Services, всплывающее окно) */
+    function loadGis() {
+      if (gisReady) return gisReady;
+      gisReady = new Promise((res, rej) => {
+        if (window.google && google.accounts && google.accounts.oauth2) return res();
+        const sc = document.createElement('script');
+        sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+        sc.onload = () => res(); sc.onerror = () => { gisReady = null; rej(new Error('Не загрузился вход Google — проверьте интернет')); };
+        document.head.appendChild(sc);
+      });
+      return gisReady;
+    }
+    function requestToken(prompt) {
+      return new Promise((res, rej) => {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID, scope: SCOPE,
+          callback: (r) => {
+            if (r.error) return rej(new Error(r.error === 'access_denied' ? 'Доступ к Диску не выдан' : 'Вход не выполнен: ' + r.error));
+            st.token = r.access_token; st.exp = Date.now() + (r.expires_in || 3600) * 1000; st.consented = true; persist(); res();
+          },
+          error_callback: (e) => rej(new Error(e && e.type === 'popup_closed' ? 'Окно входа закрыто' : e && e.type === 'popup_failed_to_open' ? 'Браузер заблокировал окно входа' : 'Вход не выполнен')),
+        });
+        tokenClient.requestAccessToken({ prompt });
+      });
+    }
+    async function signIn() {
+      try {
+        st.busy = true; ui();
+        await loadGis();
+        await requestToken(st.consented ? '' : 'consent');
+        st.status = 'ok'; st.busy = false;
+        await syncNow();
+      } catch (e) { st.busy = false; st.status = 'error'; st.msg = e.message; ui(); }
+    }
+    function signOut() {
+      if (st.token && window.google && google.accounts) try { google.accounts.oauth2.revoke(st.token, () => {}); } catch (e) { /* нет */ }
+      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, status: 'off' });
+      persist(); ui();
+    }
+
+    /* ---------------- Drive API */
+    async function api(url, opts = {}) {
+      if (!hasToken()) { const e = new Error('Нужно войти заново'); e.code = 401; throw e; }
+      let r;
+      try { r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + st.token, ...(opts.headers || {}) } }); }
+      catch (e) { const x = new Error('Нет связи с Google'); x.offline = true; throw x; }
+      if (r.status === 401) { st.token = null; persist(); const e = new Error('Сессия Google истекла — нажмите, чтобы войти'); e.code = 401; throw e; }
+      if (r.status === 404) { const e = new Error('not found'); e.code = 404; throw e; }
+      if (!r.ok) { let m = ''; try { m = (await r.json()).error.message; } catch (e) { /* нет тела */ } throw new Error(`Google Диск: ${r.status} ${m}`.trim()); }
+      return r;
+    }
+    const q = (s) => encodeURIComponent(s);
+    async function ensureFile() {
+      if (st.fileId) {
+        try { const r = await api(`${API}/files/${st.fileId}?fields=id,version,trashed`); const m = await r.json(); if (!m.trashed) return m; }
+        catch (e) { if (e.code !== 404) throw e; }
+        st.fileId = null; st.version = null;
+      }
+      // поиск среди файлов приложения
+      const r = await api(`${API}/files?q=${q(`name='${FILE}' and trashed=false`)}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) { st.fileId = f[0].id; persist(); return f[0]; }
+      return null;
+    }
+    async function ensureFolder() {
+      if (st.folderId) return st.folderId;
+      const r = await api(`${API}/files?q=${q(`name='${FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) st.folderId = f[0].id;
+      else {
+        const c = await api(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER, mimeType: 'application/vnd.google-apps.folder' }) });
+        st.folderId = (await c.json()).id;
+      }
+      persist();
+      return st.folderId;
+    }
+    async function gz(obj) {
+      const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'));
+      return new Blob([await new Response(s).arrayBuffer()], { type: 'application/gzip' });
+    }
+    async function ungz(buf) {
+      const b = new Uint8Array(buf);
+      if (b[0] !== 0x1f || b[1] !== 0x8b) return JSON.parse(new TextDecoder().decode(b));
+      const s = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));
+      return JSON.parse(await new Response(s).text());
+    }
+    async function download(id) { const r = await api(`${API}/files/${id}?alt=media`); return ungz(await r.arrayBuffer()); }
+    async function upload(doc) {
+      const body = await gz(doc);
+      if (st.fileId) {
+        const r = await api(`${UP}/files/${st.fileId}?uploadType=media&fields=id,version`, { method: 'PATCH', headers: { 'Content-Type': 'application/gzip' }, body });
+        return r.json();
+      }
+      const parent = await ensureFolder();
+      const bd = 'hb' + Math.random().toString(36).slice(2);
+      const meta = { name: FILE, mimeType: 'application/gzip', parents: [parent], description: 'Данные дашборда здоровья: Garmin, Picooc, анализы, трекер тренировок' };
+      const mp = new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bd}\r\nContent-Type: application/gzip\r\n\r\n`, body, `\r\n--${bd}--`]);
+      const r = await api(`${UP}/files?uploadType=multipart&fields=id,version`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${bd}` }, body: mp });
+      const m = await r.json();
+      st.fileId = m.id; persist();
+      return m;
+    }
+
+    /* ---------------- слияние */
+    const newer = (a, b) => ((a || '') >= (b || '') ? a : b);
+    function mergeTracker(a, b) {
+      if (!a) return b; if (!b) return a;
+      const resetAt = newer(a.resetAt, b.resetAt) || '';
+      const base = (a.resetAt || '') >= (b.resetAt || '') ? a : b;
+      const tombs = { ...(a.tomb || {}) };
+      for (const [k, v] of Object.entries(b.tomb || {})) tombs[k] = newer(tombs[k], v);
+      // тренировка плана: побеждает более поздняя правка (mt); удалена, если «надгробие» не раньше правки
+      const sessions = {};
+      for (const id of new Set([...Object.keys(a.sessions || {}), ...Object.keys(b.sessions || {})])) {
+        const x = (a.sessions || {})[id], y = (b.sessions || {})[id];
+        const pick = !x ? y : !y ? x : ((x.mt || '') >= (y.mt || '') ? x : y);
+        if (resetAt && (pick.mt || '') < resetAt) continue;
+        if (tombs['s:' + id] && tombs['s:' + id] >= (pick.mt || '')) continue;
+        sessions[id] = pick;
+      }
+      const log = {};
+      for (const id of new Set([...Object.keys(a.log || {}), ...Object.keys(b.log || {})])) {
+        const x = (a.log || {})[id], y = (b.log || {})[id];
+        const pick = !x ? y : !y ? x : ((x.at || '') >= (y.at || '') ? x : y);
+        if ((pick.at || '') < resetAt) continue;
+        if (tombs['l:' + id] && tombs['l:' + id] >= (pick.at || '')) continue;
+        log[id] = pick;
+      }
+      const plan = !a.plan ? b.plan : !b.plan ? a.plan : ((a.plan.mt || '') >= (b.plan.mt || '') ? a.plan : b.plan);
+      const other = base === a ? b : a;
+      return { ...base, start: base.start || other.start, weeks: base.weeks || other.weeks, plan, sessions, log, tomb: tombs, resetAt: resetAt || undefined, updatedAt: newer(a.updatedAt, b.updatedAt) };
+    }
+    function mergeData(local, remote) {
+      if (!remote) return local; if (!local) return remote;
+      const ln = local.dataAt || '', rn = remote.dataAt || '';
+      const win = ln >= rn ? local : remote, lose = win === local ? remote : local;
+      return { ...win, overrides: { ...(lose.overrides || {}), ...(win.overrides || {}) } };
+    }
+    // Сравнение без учёта порядка ключей и служебного updatedAt
+    const canon = (v) => (Array.isArray(v) ? '[' + v.map(canon).join(',') + ']'
+      : v && typeof v === 'object' ? '{' + Object.keys(v).filter(k => k !== 'updatedAt' && v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'
+      : JSON.stringify(v));
+    const sameTracker = (a, b) => !!a && !!b && canon({ s: a.sessions, l: a.log, t: a.tomb || {}, r: a.resetAt || '', st: a.start || '', p: (a.plan || {}).mt || '' }) === canon({ s: b.sessions, l: b.log, t: b.tomb || {}, r: b.resetAt || '', st: b.start || '', p: (b.plan || {}).mt || '' });
+    const sameData = (a, b) => !!a && !!b && (a.dataAt || '') === (b.dataAt || '') && canon(a.overrides || {}) === canon(b.overrides || {});
+    const hasLocalData = () => Object.keys(state.data.garmin.days).length || Object.keys(state.data.body.rows).length || Object.keys(state.data.labs.rows).length;
+
+    /* ---------------- цикл синхронизации: скачать → слить → (если нужно) отправить */
+    async function syncNow() {
+      if (!enabled) return;
+      if (st.busy) { st.again = true; return; }
+      if (!hasToken()) { ui(); return; }
+      st.busy = true; ui();
+      try {
+        const meta = await ensureFile();
+        let remote = null;
+        if (meta && meta.version !== st.version) remote = await download(meta.id);
+        let changedLocal = false;
+        if (remote) {
+          const md = mergeData(hasLocalData() || state.data.dataAt ? state.data : null, remote.data);
+          const mt = mergeTracker(TR, remote.tracker);
+          if (md !== state.data) { state.data = Object.assign(blank(), md); changedLocal = true; }
+          if (!sameTracker(mt, TR)) { TR = mt; setPlan(TR.plan); changedLocal = true; }
+          if (changedLocal) { try { localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data })); } catch (e) { /* место */ } trSave(true); }
+          st.version = meta.version;
+          // нужно ли отправлять: локальная копия содержит что-то, чего нет в облаке
+          const needPush = st.pending || !sameTracker(TR, remote.tracker) || !sameData(state.data, remote.data);
+          if (needPush) await push();
+        } else if (!meta || st.pending) {
+          await push();
+        }
+        st.pending = false; st.status = 'ok'; st.lastSync = new Date().toISOString(); persist();
+        if (changedLocal) render();
+      } catch (e) {
+        if (e.offline) { st.status = 'offline'; }
+        else if (e.code === 401) { st.status = 'off'; }
+        else { st.status = 'error'; st.msg = e.message.length > 60 ? e.message.slice(0, 57) + '…' : e.message; console.error(e); }
+        persist();
+      } finally {
+        st.busy = false; ui();
+        if (st.again) { st.again = false; syncNow(); }
+      }
+    }
+    async function push() {
+      const doc = { app: 'health-dashboard', v: 1, savedAt: new Date().toISOString(), data: state.data, tracker: TR };
+      const m = await upload(doc);
+      st.version = m.version;
+      st.pending = false; persist();
+    }
+    // локальное изменение → отправить через 2 с (пачкой)
+    function changed() {
+      if (!enabled) return;
+      st.pending = true; persist(); ui();
+      clearTimeout(timer);
+      timer = setTimeout(() => { if (hasToken() && navigator.onLine !== false) syncNow(); else { st.status = navigator.onLine === false ? 'offline' : st.status; ui(); } }, 2000);
+    }
+
+    function start() {
+      if (!enabled) return;
+      ui();
+      if (hasToken()) syncNow();
+      // вернулись в приложение (телефон) — подтянуть изменения
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && hasToken() && !st.busy) syncNow(); });
+      window.addEventListener('online', () => { if (hasToken()) syncNow(); else ui(); });
+      window.addEventListener('offline', () => { st.status = 'offline'; ui(); });
+      // приложение на главном экране: манифест и офлайн-кэш
+      if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    return { enabled, start, changed, syncNow, signIn, signOut, state: st, mergeTracker, mergeData, hasToken, ui };
+  })();
+
+
+  /* ====================================================================== интерфейс */
+  const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+  const longDate = (t) => { const d = new Date(t); return `${WD_FULL[(t / DAY + 3) % 7]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+  const dm = (t) => fmtDate(t).slice(0, 5);
+  const view = document.getElementById('view');
+  const titleEl = document.getElementById('title');
+  const backBtn = document.getElementById('back');
+  const nav = { tab: 'today', sid: null, add: false, week: null };
+  let X = null;
+
+  function derive() {
+    const D = state.data;
+    const daily = Object.keys(D.garmin.days).sort().map(d => ({ d, t: U.dayMs(d), ...D.garmin.days[d] }));
+    const acts = Object.values(D.garmin.activities).filter(a => !isExcluded(a)).sort((a, b) => a.t - b.t);
+    return { daily, acts };
+  }
+  const curWeek = () => Math.max(0, Math.min(TR.weeks - 1, Math.floor((todayMs() - trStart()) / (7 * DAY))));
+  const vMap = () => new Map(verdicts(X.daily).map(q => [iso(q.t), q]));
+  const logOf = (id) => TR.log[id] || null;
+  const toneOf = (l) => (!l ? null : l.joker ? 'warn' : ST[l.st].tone);
+  const pillText = (l) => (l.joker ? 'джокер' : ST[l.st].short);
+
+  function toast(title, sub) {
+    const box = document.getElementById('toasts');
+    const t = h('div', 'toast');
+    t.appendChild(h('b', null, title));
+    if (sub) t.appendChild(h('span', null, sub));
+    box.appendChild(t);
+    setTimeout(() => t.classList.add('out'), 2200);
+    setTimeout(() => t.remove(), 2700);
+  }
+  const earned = () => new Set(badges(X, seasonStats(X), vMap()).filter(b => b.earned).map(b => b.id));
+  function commit(before) {
+    trSave();
+    const now = badges(X, seasonStats(X), vMap());
+    for (const b of now) if (b.earned && before && !before.has(b.id)) toast(`Новое достижение: ${b.name}`, b.how);
+    render();
+  }
+  function mark(sid, st) {
+    const bf = earned();
+    const prev = TR.log[sid] || {};
+    if (prev.st === st && !prev.joker) return;
+    TR.log[sid] = { ...prev, st, joker: false, at: new Date().toISOString() };
+    commit(bf);
+  }
+  function clearMark(sid) { const bf = earned(); delete TR.log[sid]; tomb('l:' + sid); commit(bf); }
+
+  /* ---------------------------------------------------------------- навигация */
+  function go(patch, push = true) {
+    Object.assign(nav, patch);
+    if (push) history.pushState({ ...nav }, '');
+    render();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('popstate', (e) => { Object.assign(nav, e.state || { tab: 'today', sid: null, add: false }); render(); });
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+    const tab = b.dataset.tab;
+    if (tab === 'week' && nav.tab !== 'week') nav.week = null;
+    go({ tab, sid: null, add: false });
+  }));
+  backBtn.addEventListener('click', () => history.back());
+
+  /* ---------------------------------------------------------------- отрисовка */
+  function render() {
+    X = derive();
+    view.replaceChildren();
+    document.querySelectorAll('.tab').forEach(b => { if (b.dataset.tab === nav.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    const sub = nav.sid || nav.add;
+    backBtn.hidden = !sub;
+    if (nav.sid && TR.sessions[nav.sid]) return renderSession(TR.sessions[nav.sid]);
+    if (nav.sid) { nav.sid = null; }
+    if (nav.add) return renderAdd();
+    if (!hasTracker()) return renderNoPlan();
+    if (nav.tab === 'week') return renderWeek();
+    if (nav.tab === 'progress') return renderProgress();
+    return renderToday();
+  }
+
+  function readinessCard(v, today) {
+    const c = h('div', 'card');
+    if (!v) { c.appendChild(h('div', 'muted', 'Нет данных Garmin для светофора. Загрузите выгрузку в дашборде на компьютере.')); return c; }
+    const r = h('div', 'ready');
+    const l = h('div', 'light ' + v.tone, { good: '✓', warn: '!', crit: '✕' }[v.tone]);
+    r.appendChild(l);
+    const t = h('div', 'grow');
+    t.appendChild(h('div', 'ready-name', v.label));
+    t.appendChild(h('div', 'ready-adv', v.advice));
+    r.appendChild(t);
+    c.appendChild(r);
+    const stale = v.t < today;
+    c.appendChild(h('div', 'muted small', stale ? `По данным Garmin на ${fmtDate(v.t)}. Свежая выгрузка — на компьютере.` : 'По данным Garmin за сегодня'));
+    const d = h('details', 'more');
+    d.appendChild(h('summary', null, 'Условия'));
+    const box = h('div', 'conds');
+    for (const k of v.conds) {
+      const row = h('div', 'cond');
+      const mk = k.ok === true ? ['ok', '✓'] : k.ok === false ? ['no', '✕'] : ['na', '—'];
+      row.appendChild(h('span', 'mk ' + mk[0], mk[1]));
+      row.appendChild(h('span', 'grow', k.label));
+      const b = h('b', null, k.value ?? 'нет данных'); row.appendChild(b);
+      row.appendChild(h('span', 'muted', ` ${k.need}`));
+      box.appendChild(row);
+    }
+    d.appendChild(box);
+    c.appendChild(d);
+    return c;
+  }
+
+  function actionRow(s, disabled) {
+    const l = logOf(s.id);
+    const row = h('div', 'acts');
+    const opts = [['done', '✓', 'Сделал', 'good'], ['replaced', '↺', 'Зона 2', 'good'], ['rest', '☾', 'Отдых', 'none'], ['skipped', '✕', 'Пропуск', 'crit']];
+    for (const [st, ic, lab, tone] of opts) {
+      if (st === 'replaced' && s.kind === 'zone2') continue;
+      const b = h('button', 'act ' + tone); b.type = 'button';
+      b.appendChild(h('span', 'ic', ic)); b.appendChild(h('span', null, lab));
+      b.setAttribute('aria-pressed', String(!!l && l.st === st && !l.joker));
+      b.disabled = disabled;
+      b.onclick = () => mark(s.id, st);
+      row.appendChild(b);
+    }
+    if (row.children.length === 3) row.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    return row;
+  }
+
+  function sessionCard(s, today) {
+    const t = U.dayMs(s.date);
+    const l = logOf(s.id);
+    const c = h('div', 'card sess');
+    c.style.setProperty('--c', (KIND[s.kind] || KIND.other).color);
+    const top = h('div', 'row');
+    const tt = h('div', 'grow');
+    tt.appendChild(h('div', 'sess-title', s.title));
+    const meta = [s.time, s.dur ? `${s.dur} мин` : '', s.optional ? 'по желанию' : '', s.extra ? 'вне плана' : ''].filter(Boolean).join(' · ');
+    tt.appendChild(h('div', 'sess-meta', meta));
+    if (s.kind === 'strength' && s.detail) tt.appendChild(h('div', 'sess-meta', s.detail.replace(/^Подходы:\s*/, '')));
+    top.appendChild(tt);
+    const more = h('button', 'linkbtn', 'Подробнее'); more.type = 'button';
+    more.onclick = () => go({ sid: s.id });
+    top.appendChild(more);
+    c.appendChild(top);
+    const m = matchDay(X, s.date).map[s.id];
+    if (m) c.appendChild(h('div', 'garmin', `⌚ Garmin: ${actName(m)} ${hm(m.durMin)}${m.avgHr ? `, пульс ${f0(m.avgHr)}` : ''}`));
+    c.appendChild(actionRow(s, t > today));
+    if (l && l.note) c.appendChild(h('div', 'garmin', `✎ ${l.note}`));
+    return c;
+  }
+
+  function renderNoPlan() {
+    titleEl.textContent = 'Трекер';
+    const c = h('div', 'card');
+    c.appendChild(h('div', 'ready-name', 'План не загружен'));
+    c.appendChild(h('div', 'muted', 'Войдите через Google (значок вверху справа): план и отметки подтянутся из вашего Google Диска. Если их там ещё нет — загрузите training\\plan.json в дашборде на компьютере.'));
+    view.appendChild(c);
+    renderSyncCard();
+  }
+  function renderToday() {
+    const today = todayMs();
+    titleEl.textContent = 'Сегодня';
+    const cw = curWeek();
+    const pw = PLAN.weeks[cw] || {};
+    const before = today < trStart();
+    const after = today >= weekStart(TR.weeks);
+    view.appendChild(h('div', 'muted', before ? `${longDate(today)} · до старта «${planName()}» ${Math.round((trStart() - today) / DAY)} дн.` : after ? `${longDate(today)} · сезон завершён` : `${longDate(today)} · неделя ${cw + 1} · ${pw.phase ? pw.phase.toLowerCase() : ''}`));
+
+    const vs = verdicts(X.daily);
+    view.appendChild(h('div', 'sec', 'Готовность'));
+    view.appendChild(readinessCard(vs.at(-1), today));
+
+    const tdate = iso(today);
+    const todays = Object.values(TR.sessions).filter(s => s.date === tdate).sort((a, b) => (a.slot === b.slot ? 0 : a.slot === 'am' ? -1 : 1));
+    view.appendChild(h('div', 'sec', 'Тренировки сегодня'));
+    if (before) {
+      const c = h('div', 'card');
+      c.appendChild(h('div', null, `План стартует ${fmtDate(trStart())}.`));
+      const b = h('button', 'linkbtn', 'Посмотреть первую неделю →'); b.type = 'button';
+      b.onclick = () => go({ tab: 'week', week: 0 });
+      c.appendChild(b);
+      view.appendChild(c);
+    } else if (!todays.length) {
+      view.appendChild(h('div', 'card muted', 'Сегодня по плану отдых — только шаги.'));
+    }
+    for (const s of todays) view.appendChild(sessionCard(s, today));
+
+    // не отмечено на этой неделе
+    if (!before && !after) {
+      const miss = sessionsOfWeek(cw).filter(s => U.dayMs(s.date) < today && !s.optional && !logOf(s.id));
+      if (miss.length) {
+        view.appendChild(h('div', 'sec', 'Не отмечено на этой неделе'));
+        const list = h('div', 'list');
+        for (const s of miss) {
+          const row = h('div', 'li');
+          const bar = h('span', 'bar'); bar.style.setProperty('--c', (KIND[s.kind] || KIND.other).color); row.appendChild(bar);
+          const tx = h('div', 'grow'); tx.appendChild(h('div', 'li-title', s.title)); tx.appendChild(h('div', 'li-sub', `${WD[(U.dayMs(s.date) / DAY + 3) % 7]} ${dm(U.dayMs(s.date))}`));
+          tx.onclick = () => go({ sid: s.id });
+          row.appendChild(tx);
+          const q = h('div', 'quick');
+          const ok = h('button', 'qbtn ok', '✓'); ok.type = 'button'; ok.setAttribute('aria-label', 'Сделал'); ok.onclick = () => mark(s.id, 'done');
+          const no = h('button', 'qbtn no', '✕'); no.type = 'button'; no.setAttribute('aria-label', 'Пропуск'); no.onclick = () => mark(s.id, 'skipped');
+          q.appendChild(ok); q.appendChild(no);
+          row.appendChild(q);
+          list.appendChild(row);
+        }
+        view.appendChild(list);
+      }
+      // Garmin нашёл
+      const found = [];
+      for (let d = 0; d < 7; d++) {
+        const date = iso(weekStart(cw) + d * DAY);
+        if (U.dayMs(date) > today) break;
+        for (const [sid, a] of Object.entries(matchDay(X, date).map)) if (!logOf(sid)) found.push([sid, a]);
+      }
+      if (found.length) {
+        const b = h('button', 'big', `⌚ Отметить по Garmin (${found.length})`); b.type = 'button';
+        b.onclick = () => { const bf = earned(); for (const [sid, a] of found) TR.log[sid] = { st: 'done', at: new Date().toISOString(), garmin: a.id, note: '' }; commit(bf); toast('Отмечено по Garmin', `${found.length} трен.`); };
+        view.appendChild(b);
+      }
+    }
+
+    // неделя и шаги
+    view.appendChild(h('div', 'sec', 'Неделя'));
+    const ws = weekStats(before ? 0 : cw, X);
+    const wc = h('div', 'card');
+    const r1 = h('div', 'row');
+    r1.appendChild(h('div', 'grow', `Закрыто ${ws.cov} из ${ws.req.length}`));
+    r1.appendChild(h('b', null, `${ws.pts} очк.`));
+    wc.appendChild(r1);
+    const m = h('div', 'meter ' + (ws.pct >= WEEK_OK ? 'good' : ws.pct >= 0.5 ? 'warn' : 'crit')); m.style.marginTop = '8px';
+    const i = h('i'); i.style.width = Math.max(2, Math.round(ws.pct * 100)) + '%'; m.appendChild(i); wc.appendChild(m);
+    const lastSteps = X.daily.filter(d => d.steps != null).at(-1);
+    if (lastSteps) {
+      const tgt = pw.steps || (PLAN.weeks[0] || {}).steps;
+      wc.appendChild(h('div', 'muted small', `Шаги ${N0.format(lastSteps.steps)} из ${N0.format(tgt)}${lastSteps.t < today ? ` · на ${dm(lastSteps.t)}` : ''}`)).style.marginTop = '8px';
+    }
+    view.appendChild(wc);
+
+    const add = h('button', 'ghost', '+ Тренировка вне плана'); add.type = 'button';
+    add.onclick = () => go({ add: true });
+    view.appendChild(add);
+  }
+
+  function renderWeek() {
+    const today = todayMs();
+    if (nav.week == null) nav.week = curWeek();
+    const w = nav.week, pw = PLAN.weeks[w] || {};
+    titleEl.textContent = 'Неделя';
+    const head = h('div', 'wk-head');
+    const prev = h('button', 'wk-nav', '‹'); prev.type = 'button'; prev.disabled = w === 0; prev.setAttribute('aria-label', 'Предыдущая неделя');
+    prev.onclick = () => { nav.week--; render(); };
+    const next = h('button', 'wk-nav', '›'); next.type = 'button'; next.disabled = w === TR.weeks - 1; next.setAttribute('aria-label', 'Следующая неделя');
+    next.onclick = () => { nav.week++; render(); };
+    const t = h('div', 'wk-t');
+    t.appendChild(h('b', null, `Неделя ${w + 1} · ${pw.phase || ''}`));
+    t.appendChild(h('span', 'muted small', `${dm(weekStart(w))} — ${dm(weekStart(w) + 6 * DAY)} · шаги ${N0.format(pw.steps || 0)}`));
+    head.appendChild(prev); head.appendChild(t); head.appendChild(next);
+    view.appendChild(head);
+    const ws = weekStats(w, X);
+    const m = h('div', 'meter ' + (ws.pct >= WEEK_OK ? 'good' : ws.pct >= 0.5 ? 'warn' : 'crit'));
+    const i = h('i'); i.style.width = Math.max(2, Math.round(ws.pct * 100)) + '%'; m.appendChild(i);
+    view.appendChild(m);
+    view.appendChild(h('div', 'muted small', `Закрыто ${ws.cov} из ${ws.req.length} · ${ws.pts} очков`)).style.margin = '6px 0 12px';
+
+    const vBy = vMap();
+    const list = h('div', 'list');
+    for (let d = 0; d < 7; d++) {
+      const dt = weekStart(w) + d * DAY, date = iso(dt);
+      const dh = h('div', 'day-h');
+      dh.appendChild(h('span', null, WD[d]));
+      dh.appendChild(h('span', 'dt', dm(dt)));
+      if (dt === today) dh.appendChild(h('span', 'today', 'сегодня'));
+      const v = vBy.get(date);
+      if (v) { const dot = h('span', 'dot ' + v.tone); dot.title = v.label; dh.appendChild(dot); }
+      const block = h('div'); block.style.borderTop = d ? '1px solid var(--grid)' : '0';
+      block.appendChild(dh);
+      const g = garminDay(X, date);
+      if (g.steps != null && pw.steps) block.appendChild(h('div', 'day-steps' + (g.steps >= pw.steps ? ' ok' : ''), `${g.steps >= pw.steps ? '✓ ' : ''}шаги ${N0.format(g.steps)}`));
+      const ss = Object.values(TR.sessions).filter(s => s.date === date).sort((a, b) => (a.slot === b.slot ? 0 : a.slot === 'am' ? -1 : 1));
+      if (!ss.length) block.appendChild(h('div', 'day-rest', 'Отдых'));
+      for (const s of ss) {
+        const row = h('button', 'li'); row.type = 'button'; row.style.borderTop = '0';
+        const bar = h('span', 'bar'); bar.style.setProperty('--c', (KIND[s.kind] || KIND.other).color); row.appendChild(bar);
+        const tx = h('div', 'grow');
+        tx.appendChild(h('div', 'li-title', s.title));
+        tx.appendChild(h('div', 'li-sub', [s.time, s.dur ? `${s.dur} мин` : '', s.optional ? 'по желанию' : '', s.extra ? 'вне плана' : ''].filter(Boolean).join(' · ')));
+        row.appendChild(tx);
+        const l = logOf(s.id);
+        if (l) row.appendChild(h('span', 'pill ' + toneOf(l), pillText(l)));
+        else if (dt < today && !s.optional) row.appendChild(h('span', 'pill todo', 'не отмечено'));
+        row.appendChild(h('span', 'chev', '›'));
+        row.onclick = () => go({ sid: s.id });
+        block.appendChild(row);
+      }
+      for (const a of matchDay(X, date).extra) block.appendChild(h('div', 'extra', `⌚ вне плана: ${actName(a)} ${hm(a.durMin)}`));
+      list.appendChild(block);
+    }
+    view.appendChild(list);
+  }
+
+  function renderSession(s) {
+    const today = todayMs();
+    const t = U.dayMs(s.date);
+    const l = logOf(s.id);
+    titleEl.textContent = '';
+    view.appendChild(h('div', 'muted', `${longDate(t)} · неделя ${weekOf(s.date) + 1}`));
+    view.appendChild(h('div', 'detail-h', s.title));
+    view.appendChild(h('div', 'muted', [(KIND[s.kind] || KIND.other).label, s.time, s.dur ? `${s.dur} мин` : '', s.optional ? 'по желанию' : '', s.extra ? 'вне плана' : ''].filter(Boolean).join(' · ')));
+
+    view.appendChild(h('div', 'sec', 'Отметка'));
+    if (t > today) view.appendChild(h('div', 'muted small', 'Отметить можно в день тренировки или позже.')).style.marginBottom = '8px';
+    const g = h('div', 'stgrid');
+    const opts = [['done', '✓', 'Сделал', 'good'], ['replaced', '↺', 'Зона 2', 'good'], ['rest', '☾', 'Отдых', 'none'], ['skipped', '✕', 'Пропуск', 'crit']];
+    for (const [st, ic, lab, tone] of opts) {
+      if (st === 'replaced' && s.kind === 'zone2') continue;
+      const b = h('button', 'stbtn ' + tone); b.type = 'button';
+      b.appendChild(h('span', 'ic', ic)); b.appendChild(h('span', null, lab));
+      b.setAttribute('aria-pressed', String(!!l && l.st === st && !l.joker));
+      b.disabled = t > today;
+      b.onclick = () => mark(s.id, st);
+      g.appendChild(b);
+    }
+    view.appendChild(g);
+    if (l) {
+      const row = h('div', 'row'); row.style.marginTop = '6px';
+      if (l.st === 'skipped' && !s.optional) {
+        const left = jokersLeft(s.date.slice(0, 7));
+        const jb = h('button', 'linkbtn', l.joker ? 'Снять джокер' : left ? 'Закрыть джокером (1 в месяц)' : 'Джокер этого месяца уже использован'); jb.type = 'button';
+        jb.disabled = !l.joker && !left;
+        jb.onclick = () => { const bf = earned(); TR.log[s.id] = { ...l, joker: !l.joker, at: new Date().toISOString() }; commit(bf); };
+        row.appendChild(jb);
+      }
+      row.appendChild(h('span', 'grow'));
+      const cl = h('button', 'linkbtn', 'Снять отметку'); cl.type = 'button'; cl.onclick = () => clearMark(s.id);
+      row.appendChild(cl);
+      view.appendChild(row);
+    }
+    const m = matchDay(X, s.date).map[s.id];
+    if (m) view.appendChild(h('div', 'garmin', `⌚ Garmin: ${actName(m)} ${hm(m.durMin)}${m.avgHr ? `, пульс ${f0(m.avgHr)}` : ''}`));
+
+    // заметка — сохраняется сама
+    view.appendChild(h('div', 'sec', 'Заметка'));
+    const ta = h('textarea', 'note'); ta.placeholder = 'Самочувствие, что делал, что изменил'; ta.value = (l && l.note) || '';
+    const saved = h('div', 'saved');
+    let tm = null;
+    const persistNote = () => {
+      clearTimeout(tm);
+      const v = ta.value.trim();
+      const cur = TR.log[s.id];
+      if ((cur ? cur.note || '' : '') === v) return;
+      if (cur) TR.log[s.id] = { ...cur, note: v, at: new Date().toISOString() };
+      else { saved.textContent = 'Заметка сохранится вместе с отметкой'; return; }
+      trSave(); saved.textContent = 'Сохранено';
+    };
+    ta.addEventListener('input', () => { saved.textContent = ''; clearTimeout(tm); tm = setTimeout(persistNote, 800); });
+    ta.addEventListener('blur', persistNote);
+    view.appendChild(ta); view.appendChild(saved);
+
+    // задание
+    const tpl = tplInfo(s.tpl);
+    if (s.detail || (tpl && tpl.items)) {
+      view.appendChild(h('div', 'sec', 'Задание'));
+      const c = h('div', 'card');
+      if (s.detail) c.appendChild(h('div', null, s.detail));
+      if (tpl && tpl.items) {
+        const d = h('details', 'more');
+        d.appendChild(h('summary', null, `Упражнения (${tpl.items.length})`));
+        d.appendChild(h('div', 'muted small', `Разминка: ${tpl.warmup}`));
+        const ol = h('ol', 'ex');
+        for (const [n, x] of tpl.items) { const li = h('li'); li.appendChild(h('span', null, n)); li.appendChild(h('span', 'muted', ` — ${x}`)); ol.appendChild(li); }
+        d.appendChild(ol);
+        d.appendChild(h('div', 'muted small', `Заминка: ${tpl.cooldown}`));
+        c.appendChild(d);
+      }
+      view.appendChild(c);
+    }
+
+    // перенос
+    view.appendChild(h('div', 'sec', 'Перенести на'));
+    const w = weekOf(s.date);
+    const chips = h('div', 'chips');
+    for (let d = 0; d < 7; d++) {
+      const dt = weekStart(w) + d * DAY, date = iso(dt);
+      const b = h('button', 'chip'); b.type = 'button';
+      b.appendChild(h('b', null, WD[d])); b.appendChild(h('span', null, dm(dt)));
+      b.setAttribute('aria-current', String(date === s.date));
+      b.onclick = () => {
+        if (date === s.date) return;
+        const bf = earned();
+        const msgs = moveSession(s.id, date);
+        toast(`Перенесено на ${WD[d]} ${dm(dt)}`, msgs.join('; '));
+        commit(bf);
+      };
+      chips.appendChild(b);
+    }
+    view.appendChild(chips);
+    if (PAIR[s.tpl]) view.appendChild(h('div', 'muted small', 'Силовая A и короткий сквош переносятся вместе; плавание встаёт на освободившийся день.')).style.marginTop = '6px';
+
+    // ещё
+    const more = h('details', 'more'); more.style.marginTop = '22px';
+    more.appendChild(h('summary', null, 'Ещё'));
+    const del = h('button', 'danger', 'Удалить из плана'); del.type = 'button';
+    let armed = false;
+    del.onclick = () => {
+      if (!armed) { armed = true; del.textContent = 'Нажмите ещё раз, чтобы удалить'; del.classList.add('armed'); setTimeout(() => { armed = false; del.textContent = 'Удалить из плана'; del.classList.remove('armed'); }, 4000); return; }
+      delete TR.sessions[s.id]; delete TR.log[s.id]; tomb('s:' + s.id); tomb('l:' + s.id); trSave();
+      toast('Удалено из плана');
+      history.back();
+    };
+    more.appendChild(del);
+    more.appendChild(h('div', 'muted small', 'Название, время, минуты и задание правятся в дашборде на компьютере.')).style.marginTop = '8px';
+    view.appendChild(more);
+  }
+
+  function renderAdd() {
+    titleEl.textContent = 'Вне плана';
+    const today = todayMs();
+    view.appendChild(h('div', 'muted', `${longDate(today)}. Выберите, что сделали, — тренировка сразу будет отмечена. Очков не даёт: они за соблюдение плана.`));
+    const list = h('div', 'list'); list.style.marginTop = '12px';
+    const kinds = ['A', 'B', 'squash_short', 'squash_long', 'swim', 'cardio', 'pool_easy', 'other'];
+    for (const k of kinds) {
+      const b = TPL[k];
+      const row = h('button', 'li'); row.type = 'button';
+      const bar = h('span', 'bar'); bar.style.setProperty('--c', (KIND[b.kind] || KIND.other).color); row.appendChild(bar);
+      row.appendChild(h('div', 'grow li-title', b.title));
+      row.appendChild(h('span', 'chev', '+'));
+      row.onclick = () => {
+        const date = iso(today), now = new Date().toISOString();
+        const id = `${date}-${b.slot}-${k}-${Date.now().toString(36)}`;
+        TR.sessions[id] = { id, date, tpl: k, kind: b.kind, slot: b.slot, title: b.title, time: '', dur: null, detail: '', optional: true, extra: true, custom: true, mt: now };
+        TR.log[id] = { st: 'done', at: now, note: '' };
+        trSave();
+        toast('Добавлено', `${b.title} — отмечено выполненным`);
+        history.back();
+      };
+      list.appendChild(row);
+    }
+    view.appendChild(list);
+  }
+
+  function renderProgress() {
+    titleEl.textContent = 'Прогресс';
+    const S = seasonStats(X);
+    const today = todayMs();
+    const tiles = h('div', 'tiles');
+    const tile = (l, v, s) => { const t = h('div', 'tile'); t.appendChild(h('div', 'tile-l', l)); t.appendChild(h('div', 'tile-v', v)); if (s) t.appendChild(h('div', 'tile-s', s)); tiles.appendChild(t); };
+    tile(`Уровень ${S.level}`, N0.format(S.pts), `очков · до следующего ${S.toNext}`);
+    tile('Серия недель', String(S.streak), `рекорд ${S.best}`);
+    tile('Джокер месяца', String(jokersLeft(iso(Math.max(today, trStart())).slice(0, 7))), '1 пропуск без потери серии');
+    const cw = curWeek();
+    tile('Неделя', `${S.weeks[cw].cov}/${S.weeks[cw].req.length}`, `${S.weeks[cw].pts} очков`);
+    view.appendChild(tiles);
+
+    view.appendChild(h('div', 'sec', 'Сезон'));
+    const sc = h('div', 'card');
+    const row = h('div', 'season');
+    S.weeks.forEach((w, i) => {
+      const b = h('button', 'wk' + (i === cw && today >= trStart() ? ' cur' : '')); b.type = 'button';
+      const bar = h('span', 'wk-bar'); const f = h('i', w.ended || w.full ? (w.ok ? 'good' : w.pct >= 0.5 ? 'warn' : 'crit') : ''); f.style.height = Math.round(w.pct * 100) + '%'; bar.appendChild(f);
+      b.appendChild(bar); b.appendChild(h('span', 'wk-n', String(i + 1)));
+      b.setAttribute('aria-label', `Неделя ${i + 1}: ${w.cov} из ${w.req.length}`);
+      b.onclick = () => go({ tab: 'week', week: i });
+      row.appendChild(b);
+    });
+    sc.appendChild(row);
+    sc.appendChild(h('div', 'muted small', `Засчитывается неделя с ≥ ${Math.round(WEEK_OK * 100)} % плана. Нажмите на неделю, чтобы открыть её.`)).style.marginTop = '8px';
+    view.appendChild(sc);
+
+    const bl = badges(X, S, vMap());
+    view.appendChild(h('div', 'sec', `Достижения · ${bl.filter(b => b.earned).length} из ${bl.length}`));
+    const bc = h('div', 'list');
+    for (const b of bl.sort((a, b2) => (b2.earned - a.earned))) {
+      const it = h('div', 'badge' + (b.earned ? ' on' : ''));
+      it.appendChild(h('div', 'badge-i', b.earned ? '★' : '☆'));
+      const tx = h('div');
+      tx.appendChild(h('div', 'badge-n', b.name));
+      tx.appendChild(h('div', 'badge-h', b.how));
+      if (b.earned && b.when) tx.appendChild(h('div', 'badge-w', `получено ${fmtDate(U.dayMs(b.when))}`));
+      else if (!b.earned && b.prog) tx.appendChild(h('div', 'badge-w', b.prog));
+      it.appendChild(tx);
+      bc.appendChild(it);
+    }
+    view.appendChild(bc);
+
+    const rd = h('details', 'more card');
+    rd.appendChild(h('summary', null, 'Как считаются очки'));
+    const rules = h('div', 'rules');
+    for (const [a, b] of [['Силовая, длинный сквош', '10'], ['Короткий сквош, зона 2', '8'], ['Бассейн-восстановление, контроль', '5'], ['Замена на зону 2, отдых по готовности', 'как выполнение'], ['Пропуск, тренировка вне плана', '0'], ['Неделя на 100 %', `+${BONUS_WEEK}`], ['День с нормой шагов', `+${BONUS_STEPS}`]]) {
+      const r = h('div'); r.appendChild(h('span', null, a)); r.appendChild(h('b', null, b)); rules.appendChild(r);
+    }
+    rd.appendChild(rules);
+    view.appendChild(rd);
+
+    renderSyncCard();
+  }
+
+  function renderSyncCard() {
+    view.appendChild(h('div', 'sec', 'Синхронизация'));
+    const sy = h('div', 'card');
+    const St = Sync.state;
+    sy.appendChild(h('div', null, St.consented ? 'Google Диск подключён' : 'Вход через Google не выполнен'));
+    sy.appendChild(h('div', 'muted small', St.lastSync ? `Последняя синхронизация ${new Date(St.lastSync).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Ещё не синхронизировалось'));
+    const b1 = h('button', 'big', St.consented ? 'Синхронизировать сейчас' : 'Войти через Google'); b1.type = 'button'; b1.style.marginTop = '10px';
+    b1.onclick = () => (St.consented && Sync.hasToken() ? Sync.syncNow() : Sync.signIn()).then(render);
+    sy.appendChild(b1);
+    view.appendChild(sy);
+    const full = h('a', 'ghost'); full.href = '../'; full.textContent = 'Открыть полный дашборд';
+    full.style.cssText = 'display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--ink);margin-top:4px';
+    view.appendChild(full);
+  }
+
+  /* ---------------------------------------------------------------- запуск */
+  load();
+  history.replaceState({ ...nav }, '');
+  render();
+  Sync.start();
+  // полночь и возврат в приложение — перерисовать «Сегодня»
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
+})();
+</script>
+</body>
+</html>
