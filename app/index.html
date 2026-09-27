@@ -65,7 +65,7 @@ main { padding: 12px 16px calc(84px + var(--bottom)); }
 
 /* нижняя панель вкладок */
 .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding-bottom: var(--bottom); }
-.tabbar-in { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 560px; margin: 0 auto; }
+.tabbar-in { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 560px; margin: 0 auto; }
 .tab { border: 0; background: none; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); cursor: pointer; min-height: 54px; }
 .tab svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tab[aria-current="page"] { color: var(--s1); font-weight: 600; }
@@ -208,6 +208,31 @@ textarea.note { width: 100%; font: inherit; font-size: 16px; color: var(--ink); 
 @keyframes tin { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; transition: none; } }
 .empty { text-align: center; padding: 28px 12px; color: var(--muted); }
+
+/* питание */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+.seg button { border: 0; background: none; border-radius: 9px; min-height: 38px; font-size: 15px; cursor: pointer; color: var(--ink2); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--page); font-weight: 600; }
+.meal { border-top: 1px solid var(--grid); }
+.meal:first-child { border-top: 0; }
+.meal summary { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; list-style: none; min-height: 56px; }
+.meal summary::-webkit-details-marker { display: none; }
+.meal .bar { width: 4px; align-self: stretch; border-radius: 2px; background: var(--c); flex: none; }
+.meal-slot { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.meal-name { font-size: 16px; font-weight: 600; line-height: 1.25; }
+.meal-sub { font-size: 13px; color: var(--muted); }
+.meal-body { padding: 0 14px 12px 30px; font-size: 14px; }
+.meal-body table { width: 100%; border-collapse: collapse; }
+.meal-body td { padding: 4px 0; border-top: 1px solid var(--grid); }
+.meal-body td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meal-body ol { padding-left: 18px; margin: 8px 0 0; color: var(--ink2); }
+.nt-sum { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 10px 14px; border-top: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+.nt-sum .good { color: var(--good-text); font-weight: 600; } .nt-sum .bad { color: var(--bad-text); font-weight: 600; }
+.nt-note { background: var(--warn-bg); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
+.tmr { font-size: 14px; }
+.tmr div { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--grid); }
+.tmr div:first-child { border-top: 0; }
+.tmr span:first-child { color: var(--muted); width: 72px; flex: none; }
 </style>
 </head>
 <body>
@@ -221,6 +246,7 @@ textarea.note { width: 100%; font: inherit; font-size: 16px; color: var(--ink); 
   <button type="button" class="tab" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Сегодня</button>
   <button type="button" class="tab" data-tab="week"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>Неделя</button>
   <button type="button" class="tab" data-tab="progress"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5a2.5 2.5 0 0 0 2.8 3.9M17 6h2.5a2.5 2.5 0 0 1-2.8 3.9"/></svg>Прогресс</button>
+  <button type="button" class="tab" data-tab="food"><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 21V3c-2.2 1.2-3.5 3.6-3.5 7v3H17"/></svg>Питание</button>
 </div></nav>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <script>
@@ -705,6 +731,163 @@ const U = {
   }
 
 
+/* ---- общий блок «nutrition» из dashboard.html, вставлен при сборке ---- */
+  /* ============================================================================
+     nutrition — меню, порции, КБЖУ, закупка и заготовка. Параметров меню в коде нет:
+     всё приходит из nutrition\nutrition.json (app: health-nutrition) → «Загрузить выгрузки».
+     Хранится в браузере отдельно (ключ health-nutrition-v1): данные меню + отметки
+     «куплено» / «приготовлено».
+     ========================================================================== */
+  const NT_KEY = 'health-nutrition-v1';
+  const NUTR_KEYS = ['kcal', 'P', 'F', 'SF', 'C', 'Fib', 'Salt', 'Fe'];
+  const SLOTS = [['B', 'Завтрак'], ['L', 'Обед'], ['S', 'Перекус'], ['D', 'Ужин'], ['X', 'Сквош']];
+  const SRC = {
+    morning: { label: 'готовится утром', short: 'утром', color: 'var(--muted)' },
+    fresh: { label: 'готовится в этот день', short: 'свежее', color: 'var(--s3)' },
+    fridge: { label: 'заготовка, холодильник', short: 'холодильник', color: 'var(--s1)' },
+    freezer: { label: 'заготовка, морозилка', short: 'морозилка', color: 'var(--s7)' },
+    ready: { label: 'готовое из магазина', short: 'готовое', color: 'var(--s4)' },
+    squash: { label: 'добавка в день сквоша', short: 'добавка', color: 'var(--s2)' },
+  };
+  const WD_SUN = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  let NT = null;
+  function ntLoad() {
+    try { const raw = localStorage.getItem(NT_KEY); if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object') NT = o; } } catch (e) { /* нет хранилища */ }
+    if (!NT) NT = { v: 1, data: null, marks: {}, updatedAt: null };
+    NT.marks = NT.marks || {};
+  }
+  function ntSave(silent) {
+    NT.updatedAt = new Date().toISOString();
+    let ok = true;
+    try { localStorage.setItem(NT_KEY, JSON.stringify(NT)); } catch (e) { ok = false; }
+    if (!silent) Sync.changed('nutrition');
+    return ok;
+  }
+  ntLoad();
+  const NTD = () => NT.data;
+  const hasNutrition = () => !!(NT.data && NT.data.start && Array.isArray(NT.data.weeks) && NT.data.weeks.length);
+  function importNutrition(obj) {
+    const n = obj.nutrition;
+    if (!n || !n.start || !Array.isArray(n.weeks) || !n.recipes || !n.products || !Array.isArray(n.people)) throw new Error('В файле нет меню (start, weeks, recipes, products, people)');
+    NT.data = { ...n, mt: new Date().toISOString() };
+    ntSave();
+    const nr = Object.keys(n.recipes).length;
+    return `меню «${n.name || 'без названия'}»: ${n.weeks.length} нед. по кругу с ${fmtDate(U.dayMs(n.start))}, рецептов ${nr}, людей ${n.people.length}; отметки сохранены`;
+  }
+  // Слияние двух копий (синхронизация): меню — по времени загрузки, отметки — по записям
+  function mergeNutrition(a, b) {
+    if (!a || !a.data) return b; if (!b || !b.data) return a;
+    const data = (a.data.mt || '') >= (b.data.mt || '') ? a.data : b.data;
+    const marks = { ...(a.marks || {}) };
+    for (const [k, v] of Object.entries(b.marks || {})) if (!marks[k] || (v.at || '') > (marks[k].at || '')) marks[k] = v;
+    return { v: 1, data, marks, updatedAt: (a.updatedAt || '') >= (b.updatedAt || '') ? a.updatedAt : b.updatedAt };
+  }
+
+  /* ---------------- календарь меню: неделя начинается в воскресенье (день заготовки) */
+  const ntStart = () => U.dayMs(NTD().start);
+  const ntCycle = () => NTD().weeks.length;
+  const ntWeekNo = (t) => Math.floor((t - ntStart()) / (7 * DAY));                 // номер недели от старта (может быть < 0)
+  const ntWeekStart = (w) => ntStart() + w * 7 * DAY;
+  const ntMenuIdx = (w) => ((w % ntCycle()) + ntCycle()) % ntCycle();              // 0..cycle-1
+  const ntToday = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
+  function ntDay(t) {
+    const w = ntWeekNo(t), idx = ntMenuIdx(w), dow = Math.round((t - ntWeekStart(w)) / DAY);
+    return { t, w, idx, dow, wd: WD_SUN[dow], day: NTD().weeks[idx].days[dow], before: t < ntStart() };
+  }
+  // День сквоша: по трекеру тренировок (если дата в его периоде), иначе — по типовой неделе меню
+  function ntSquash(t) {
+    const date = U.msToDate(t);
+    if (typeof TR !== 'undefined' && TR && TR.start && TR.weeks) {
+      const s0 = U.dayMs(TR.start), s1 = s0 + TR.weeks * 7 * DAY;
+      if (t >= s0 && t < s1) return Object.values(TR.sessions || {}).some(s => s.date === date && s.kind === 'squash');
+    }
+    return (NTD().squashDefault || []).includes(ntDay(t).dow);
+  }
+  const ntPerson = (id) => NTD().people.find(p => p.id === id) || NTD().people[0];
+  // Приёмы пищи дня для человека: [{slot, label, rid, src}]
+  function ntMeals(t, p) {
+    const { day } = ntDay(t);
+    const out = [];
+    for (const [slot, label] of SLOTS) {
+      if (slot === 'X') { if (p.squash && ntSquash(t) && NTD().squashExtra) out.push({ slot, label, rid: NTD().squashExtra, src: 'squash' }); continue; }
+      if (day[slot]) out.push({ slot, label, rid: day[slot], src: (day.src || {})[slot] || 'morning' });
+    }
+    return out;
+  }
+  // Порция: граммы на человека (ингредиенты «только Виктору» у других — 0)
+  function ntPortion(rid, p) {
+    const r = NTD().recipes[rid];
+    if (!r) return [];
+    return (r.ingr || []).map(([prod, g, only]) => ({ prod, g: only && only !== p.id ? 0 : g * p.factor, only })).filter(x => x.g > 0);
+  }
+  function ntNutr(rid, p) {
+    const r = NTD().recipes[rid];
+    const t = Object.fromEntries(NUTR_KEYS.map(k => [k, 0]));
+    if (!r) return t;
+    if (r.fixed) { for (const k of NUTR_KEYS) t[k] = (r.fixed[k] || 0) * p.factor; return t; }
+    for (const { prod, g } of ntPortion(rid, p)) {
+      const q = NTD().products[prod];
+      if (!q) continue;
+      const k = g / 100;
+      t.P += q.P * k; t.F += q.F * k; t.SF += q.SF * k; t.C += q.C * k; t.Fib += q.Fib * k; t.Salt += q.Salt * k; t.Fe += (q.Fe || 0) * k;
+      t.kcal += (4 * q.P + 9 * q.F + 4 * q.C + 2 * q.Fib) * k;   // Атуотер: 4 Б + 9 Ж + 4 У + 2 клетчатка
+    }
+    return t;
+  }
+  function ntDayTotals(t, p) {
+    const tot = Object.fromEntries(NUTR_KEYS.map(k => [k, 0]));
+    for (const m of ntMeals(t, p)) { const n = ntNutr(m.rid, p); for (const k of NUTR_KEYS) tot[k] += n[k]; }
+    return tot;
+  }
+  // Цель на день: значение с поправкой на сквош и режим (target ±5 %, min, max)
+  function ntTarget(p, k, t) {
+    const x = (p.targets || []).find(q => q.k === k);
+    if (!x) return null;
+    const v = x.v + (x.squashAdd && p.squash && t != null && ntSquash(t) ? x.squashAdd : 0);
+    return { ...x, v };
+  }
+  function ntTone(val, tg) {
+    if (!tg) return 'none';
+    if (tg.mode === 'min') return val >= tg.v - 1e-9 ? 'good' : 'bad';
+    if (tg.mode === 'max') return val <= tg.v + 1e-9 ? 'good' : 'bad';
+    return Math.abs(val - tg.v) <= tg.v * (tg.tol != null ? tg.tol : 0.05) ? 'good' : 'bad';
+  }
+
+  /* ---------------- закупка и заготовка на неделю (Вс–Сб), на всех людей */
+  function ntShopping(w) {
+    const items = {}; let ready = 0;
+    for (let d = 0; d < 7; d++) {
+      const t = ntWeekStart(w) + d * DAY;
+      for (const p of NTD().people) for (const m of ntMeals(t, p)) {
+        const r = NTD().recipes[m.rid];
+        if (r && r.kind === 'ready') { ready++; continue; }
+        for (const { prod, g } of ntPortion(m.rid, p)) items[prod] = (items[prod] || 0) + g;
+      }
+    }
+    return { items, ready };
+  }
+  // Блюда заготовки недели: всего сырого на все дни и людей, доли готового по людям
+  function ntBatch(w) {
+    const idx = ntMenuIdx(w);
+    const b = (NTD().batch || []).find(x => x.week === idx + 1);
+    if (!b) return null;
+    const people = NTD().people;
+    const sumF = people.reduce((a, p) => a + p.factor, 0);
+    const dishes = b.dishes.map(dsh => {
+      const r = NTD().recipes[dsh.r];
+      const ingr = (r.ingr || []).map(([prod, g, only]) => {
+        const eaters = people.filter(p => !only || only === p.id);
+        return { prod, g, only, total: g * eaters.reduce((a, p) => a + p.factor, 0) * dsh.days };
+      });
+      const shares = people.map(p => ({ id: p.id, name: p.name, share: p.factor / sumF, containers: dsh.days - (dsh.where === 'fridge' && dsh.use.startsWith('ужин Вс') ? 1 : 0) }));
+      return { ...dsh, recipe: r, ingr, shares };
+    });
+    return { ...b, dishes };
+  }
+  const markKey = (type, w, id) => `${type}|${U.msToDate(ntWeekStart(w))}|${id}`;
+  const isMarked = (key) => !!(NT.marks[key] && NT.marks[key].on);
+  function setMark(key, on) { NT.marks[key] = { on: !!on, at: new Date().toISOString() }; ntSave(); }
+
 /* ---- общий блок «sync» из dashboard.html, вставлен при сборке ---- */
   /* ============================================================================
      sync — синхронизация через Google Диск. Работает только на сайте (https);
@@ -717,14 +900,17 @@ const U = {
     const SCOPE = 'https://www.googleapis.com/auth/drive.file';
     const FOLDER = 'Health dashboard';
     const FILE = 'health-data.json.gz';
+    // Питание — отдельный файл в отдельной папке: ею можно поделиться, не открывая данные о здоровье
+    const FOLDER_N = 'Health dashboard — питание';
+    const FILE_N = 'nutrition-data.json.gz';
     const LS_SYNC = 'health-sync-v1';
     const API = 'https://www.googleapis.com/drive/v3';
     const UP = 'https://www.googleapis.com/upload/drive/v3';
     const enabled = location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
-    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
+    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, pendingN: false, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
     try { Object.assign(st, JSON.parse(localStorage.getItem(LS_SYNC) || '{}'), { busy: false, status: 'off', msg: '' }); } catch (e) { /* нет хранилища */ }
-    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
+    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, fileIdN: st.fileIdN, folderIdN: st.folderIdN, versionN: st.versionN, pendingN: st.pendingN, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
 
     let tokenClient = null, gisReady = null, timer = null;
     const hasToken = () => st.token && Date.now() < st.exp - 60000;
@@ -747,14 +933,14 @@ const U = {
       if (st.busy) { text = 'Синхронизация…'; tone = 'busy'; }
       else if (st.status === 'error') { text = st.msg || 'Ошибка синхронизации'; tone = 'err'; }
       else if (st.status === 'offline') { text = st.pending ? 'Нет сети — изменения ждут' : 'Нет сети'; tone = 'warn'; }
-      else if (!hasToken()) { text = st.consented ? (st.pending ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = st.pending ? 'warn' : 'idle'; }
-      else if (st.pending) { text = 'Изменения ждут отправки'; tone = 'warn'; }
+      else if (!hasToken()) { const pend = st.pending || st.pendingN; text = st.consented ? (pend ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = pend ? 'warn' : 'idle'; }
+      else if (st.pending || st.pendingN) { text = 'Изменения ждут отправки'; tone = 'warn'; }
       else { text = st.lastSync ? `Синхронизировано ${today ? t : d + ' ' + t}` : 'Google Диск подключён'; tone = 'ok'; }
       const compact = chip.parentNode && chip.parentNode.hasAttribute('data-compact');
       if (compact) text = { busy: '…', err: 'Ошибка', warn: st.status === 'offline' ? 'Нет сети' : 'Отправка', ok: t || 'OK', idle: st.consented ? 'Синхр.' : 'Войти' }[tone] || text;
       chip.textContent = text;
       chip.dataset.tone = tone;
-      chip.title = 'Синхронизация с Google Диском: файл «Health dashboard/health-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
+      chip.title = 'Синхронизация с Google Диском: «Health dashboard/health-data.json.gz» и «Health dashboard — питание/nutrition-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
     }
 
     /* ---------------- вход Google (Google Identity Services, всплывающее окно) */
@@ -793,7 +979,7 @@ const U = {
     }
     function signOut() {
       if (st.token && window.google && google.accounts) try { google.accounts.oauth2.revoke(st.token, () => {}); } catch (e) { /* нет */ }
-      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, status: 'off' });
+      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, status: 'off' });
       persist(); ui();
     }
 
@@ -833,6 +1019,70 @@ const U = {
       persist();
       return st.folderId;
     }
+    // Файл питания: поиск по имени среди файлов, доступных приложению
+    async function ensureFileN() {
+      if (st.fileIdN) {
+        try { const r = await api(`${API}/files/${st.fileIdN}?fields=id,version,trashed`); const m = await r.json(); if (!m.trashed) return m; }
+        catch (e) { if (e.code !== 404) throw e; }
+        st.fileIdN = null; st.versionN = null;
+      }
+      const r = await api(`${API}/files?q=${q(`name='${FILE_N}' and trashed=false`)}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) { st.fileIdN = f[0].id; persist(); return f[0]; }
+      return null;
+    }
+    async function ensureFolderN() {
+      if (st.folderIdN) return st.folderIdN;
+      const r = await api(`${API}/files?q=${q(`name='${FOLDER_N}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) st.folderIdN = f[0].id;
+      else {
+        const c = await api(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER_N, mimeType: 'application/vnd.google-apps.folder' }) });
+        st.folderIdN = (await c.json()).id;
+      }
+      persist();
+      return st.folderIdN;
+    }
+    async function uploadN(doc) {
+      const body = await gz(doc);
+      if (st.fileIdN) {
+        const r = await api(`${UP}/files/${st.fileIdN}?uploadType=media&fields=id,version`, { method: 'PATCH', headers: { 'Content-Type': 'application/gzip' }, body });
+        return r.json();
+      }
+      const parent = await ensureFolderN();
+      const bd = 'hn' + Math.random().toString(36).slice(2);
+      const meta = { name: FILE_N, mimeType: 'application/gzip', parents: [parent], description: 'Меню, рецепты, отметки закупки и готовки (дашборд здоровья, вкладки «Питание» и «Готовка»)' };
+      const mp = new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bd}\r\nContent-Type: application/gzip\r\n\r\n`, body, `\r\n--${bd}--`]);
+      const r = await api(`${UP}/files?uploadType=multipart&fields=id,version`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${bd}` }, body: mp });
+      const m = await r.json();
+      st.fileIdN = m.id; persist();
+      return m;
+    }
+    const sameNutrition = (a, b) => !!a && !!b && canonN(a) === canonN(b);
+    const canonN = (x) => canon({ mt: (x.data || {}).mt || '', m: x.marks || {} });
+    // Синхронизация питания: скачать → слить (меню по времени загрузки, отметки по записям) → при необходимости отправить
+    async function syncNutrition() {
+      const meta = await ensureFileN();
+      let changed = false;
+      if (meta && meta.version !== st.versionN) {
+        const remote = await download(meta.id);
+        const rn = remote && remote.nutrition;
+        const merged = mergeNutrition(NT, rn);
+        if (merged && !sameNutrition(merged, NT)) { NT = merged; NT.marks = NT.marks || {}; ntSave(true); changed = true; }
+        st.versionN = meta.version;
+        if (st.pendingN || !sameNutrition(NT, rn || {})) await pushN();
+      } else if ((!meta && NT.data) || (meta && st.pendingN)) {
+        await pushN();
+      }
+      st.pendingN = false; persist();
+      return changed;
+    }
+    async function pushN() {
+      if (!NT.data) return;
+      const m = await uploadN({ app: 'health-nutrition-sync', v: 1, savedAt: new Date().toISOString(), nutrition: NT });
+      st.versionN = m.version; st.pendingN = false; persist();
+    }
+
     async function gz(obj) {
       const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'));
       return new Blob([await new Response(s).arrayBuffer()], { type: 'application/gzip' });
@@ -927,6 +1177,7 @@ const U = {
         } else if (!meta || st.pending) {
           await push();
         }
+        if (await syncNutrition()) changedLocal = true;
         st.pending = false; st.status = 'ok'; st.lastSync = new Date().toISOString(); persist();
         if (changedLocal) render();
       } catch (e) {
@@ -946,9 +1197,10 @@ const U = {
       st.pending = false; persist();
     }
     // локальное изменение → отправить через 2 с (пачкой)
-    function changed() {
+    function changed(kind) {
       if (!enabled) return;
-      st.pending = true; persist(); ui();
+      if (kind === 'nutrition') st.pendingN = true; else st.pending = true;
+      persist(); ui();
       clearTimeout(timer);
       timer = setTimeout(() => { if (hasToken() && navigator.onLine !== false) syncNow(); else { st.status = navigator.onLine === false ? 'offline' : st.status; ui(); } }, 2000);
     }
@@ -1040,6 +1292,7 @@ const U = {
     if (nav.sid && TR.sessions[nav.sid]) return renderSession(TR.sessions[nav.sid]);
     if (nav.sid) { nav.sid = null; }
     if (nav.add) return renderAdd();
+    if (nav.tab === 'food') return renderFood();
     if (!hasTracker()) return renderNoPlan();
     if (nav.tab === 'week') return renderWeek();
     if (nav.tab === 'progress') return renderProgress();
@@ -1460,6 +1713,91 @@ const U = {
     view.appendChild(rd);
 
     renderSyncCard();
+  }
+
+  /* ---------------------------------------------------------------- питание (только просмотр) */
+  const LS_NPERSON = 'health-nutrition-person';
+  let foodPid = (() => { try { return localStorage.getItem(LS_NPERSON) || 'v'; } catch (e) { return 'v'; } })();
+  const gP = (g) => (g < 10 ? `${N1.format(g)} г` : `${N0.format(Math.round(g / 5) * 5)} г`);
+  function renderFood() {
+    titleEl.textContent = 'Питание';
+    if (!hasNutrition()) {
+      const c = h('div', 'card');
+      c.appendChild(h('div', 'ready-name', 'Меню не загружено'));
+      c.appendChild(h('div', 'muted', 'Загрузите nutrition\\nutrition.json на сайте на компьютере («Загрузить выгрузки») — меню придёт сюда через Google Диск.'));
+      view.appendChild(c);
+      return renderSyncCard();
+    }
+    const N = NTD();
+    if (N.people.length > 1) {
+      const seg = h('div', 'seg');
+      for (const q of N.people) { const b = h('button', null, q.name); b.type = 'button'; b.setAttribute('aria-pressed', String(q.id === foodPid)); b.onclick = () => { foodPid = q.id; try { localStorage.setItem(LS_NPERSON, q.id); } catch (e) { /* нет */ } render(); }; seg.appendChild(b); }
+      view.appendChild(seg);
+    }
+    const p = ntPerson(foodPid);
+    const t = ntToday();
+    const info = ntDay(t);
+    if (info.before) view.appendChild(h('div', 'nt-note', `Меню стартует ${fmtDate(ntStart())}. Ниже — первый день меню.`));
+    const t0 = info.before ? ntStart() : t;
+    const d0 = ntDay(t0);
+    view.appendChild(h('div', 'sec', `${t0 === t ? 'Сегодня' : 'Первый день'} · ${longDate(t0)} · неделя меню ${d0.idx + 1}`));
+    if (d0.day.note) view.appendChild(h('div', 'nt-note', d0.day.note));
+    const list = h('div', 'list');
+    for (const m of ntMeals(t0, p)) {
+      const r = N.recipes[m.rid] || { name: m.rid };
+      const n = ntNutr(m.rid, p);
+      const s = SRC[m.src] || SRC.morning;
+      const det = h('details', 'meal');
+      const sm = h('summary');
+      const bar = h('span', 'bar'); bar.style.setProperty('--c', s.color); sm.appendChild(bar);
+      const tx = h('div', 'grow');
+      tx.appendChild(h('div', 'meal-slot', `${m.label} · ${s.short}`));
+      tx.appendChild(h('div', 'meal-name', r.name));
+      tx.appendChild(h('div', 'meal-sub', `${N0.format(n.kcal)} ккал · Б ${N0.format(n.P)} · Ж ${N0.format(n.F)} · У ${N0.format(n.C)}`));
+      sm.appendChild(tx); sm.appendChild(h('span', 'chev', '›'));
+      det.appendChild(sm);
+      const body = h('div', 'meal-body');
+      const port = ntPortion(m.rid, p);
+      if (port.length) {
+        const tb = h('table');
+        for (const x of port) { const tr = h('tr'); tr.appendChild(h('td', null, x.prod)); tr.appendChild(h('td', null, gP(x.g))); tb.appendChild(tr); }
+        body.appendChild(tb);
+      }
+      if ((r.steps || []).length) { const ol = h('ol'); for (const st of r.steps) ol.appendChild(h('li', null, st)); body.appendChild(ol); }
+      det.appendChild(body);
+      list.appendChild(det);
+    }
+    const tot = ntDayTotals(t0, p);
+    const sum = h('div', 'nt-sum');
+    const tk = ntTarget(p, 'kcal', t0), tpp = ntTarget(p, 'P', t0);
+    sum.appendChild(h('span', null, 'Итого за день'));
+    const r1 = h('span');
+    r1.appendChild(h('span', ntTone(tot.kcal, tk) === 'bad' ? 'bad' : 'good', `${N0.format(tot.kcal)} ккал`));
+    r1.appendChild(document.createTextNode(' · '));
+    r1.appendChild(h('span', ntTone(tot.P, tpp) === 'bad' ? 'bad' : 'good', `Б ${N0.format(tot.P)}`));
+    sum.appendChild(r1);
+    list.appendChild(sum);
+    view.appendChild(list);
+    // завтра — кратко
+    const t1 = t0 + DAY;
+    view.appendChild(h('div', 'sec', `Завтра · ${longDate(t1)}`));
+    const tm = h('div', 'card tmr');
+    for (const m of ntMeals(t1, p)) { const row = h('div'); row.appendChild(h('span', null, m.label)); row.appendChild(h('span', null, (N.recipes[m.rid] || {}).name || m.rid)); tm.appendChild(row); }
+    view.appendChild(tm);
+    // вся неделя — обеды и ужины
+    const wk = h('details', 'card more');
+    wk.appendChild(h('summary', null, 'Вся неделя: обеды и ужины'));
+    const w = ntWeekNo(t0), ws = ntWeekStart(w);
+    const wl = h('div', 'tmr');
+    for (let d = 0; d < 7; d++) {
+      const td = ws + d * DAY, dd = ntDay(td).day;
+      const row = h('div'); row.appendChild(h('span', null, `${WD_SUN[d]} ${dm(td)}`));
+      row.appendChild(h('span', null, `${(N.recipes[dd.L] || {}).name || dd.L} / ${(N.recipes[dd.D] || {}).name || dd.D}`));
+      wl.appendChild(row);
+    }
+    wk.appendChild(wl);
+    view.appendChild(wk);
+    view.appendChild(h('div', 'muted small', 'Закупка, заготовка и рецепты целиком — вкладка «Готовка» на сайте.'));
   }
 
   function renderSyncCard() {

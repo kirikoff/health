@@ -403,6 +403,51 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
   .tr-kpi .tile-sub { font-size: 11px; }
   .tr-nav-title { order: -1; flex: 1 1 100%; }
 }
+
+/* ---------- питание и готовка */
+.nt-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 10px; }
+.nt-ctl .tr-nav { margin-bottom: 0; }
+.nt-day { min-height: 0; }
+.nt-sq { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--s2); border: 1px solid color-mix(in srgb, var(--s2) 45%, var(--border)); border-radius: 999px; padding: 0 7px; }
+.nt-meal { text-align: left; border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 10px; background: var(--page); padding: 6px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.nt-meal:hover { background: var(--hover); }
+.nt-meal:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+.nt-meal-top { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+.nt-slot { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.nt-src { font-size: 10.5px; color: var(--c); white-space: nowrap; }
+.nt-meal-name { font-weight: 600; font-size: 13px; line-height: 1.25; }
+.nt-meal-meta { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.nt-day-sum { margin-top: auto; font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 4px; border-top: 1px solid var(--grid); }
+.nt-good { color: var(--good-text); font-weight: 600; } .nt-bad { color: var(--bad-text); font-weight: 600; } .nt-none { color: var(--ink2); }
+.nt-note { font-size: 11.5px; color: var(--ink2); background: var(--hover); border-radius: 8px; padding: 5px 7px; }
+.nt-list { margin: 6px 0 2px; padding-left: 20px; font-size: 13px; color: var(--ink2); }
+.nt-list li { margin: 3px 0; }
+.nt-pre { white-space: pre-line; }
+.ck-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ck-top .meter { flex: 1 1 200px; margin-top: 0 !important; }
+.ck-count { font-weight: 650; }
+.ck-stores { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); margin-top: 10px; align-items: start; }
+.ck-store h3 { margin: 0 0 6px; font-size: 14px; }
+.ck-item { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid var(--grid); cursor: pointer; font-size: 13.5px; }
+.ck-item:last-child { border-bottom: 0; }
+.ck-item input, .ck-done input { width: 20px; height: 20px; flex: none; accent-color: var(--good); }
+.ck-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ck-item-hint { font-size: 11.5px; color: var(--muted); }
+.ck-item-qty { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.ck-item.on .ck-item-name, .ck-item.on .ck-item-qty { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.ck-dishes { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.ck-dish.on { border-color: color-mix(in srgb, var(--good) 50%, var(--border)); background: color-mix(in srgb, var(--good) 5%, var(--surface)); }
+.ck-done { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+.ck-steps summary, .ck-recipe summary { cursor: pointer; }
+.ck-steps { margin-top: 6px; font-size: 13px; }
+.ck-group { margin: 16px 0 8px; font-size: 15px; }
+.ck-recipe { display: block; margin-bottom: 8px; }
+.ck-recipe summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; align-items: baseline; list-style-position: inside; }
+.ck-recipe-name { font-weight: 600; }
+@media (max-width: 640px) {
+  .nt-ctl .period { width: 100%; }
+  .ck-item { font-size: 15px; padding: 9px 2px; }
+}
 </style>
 </head>
 <body>
@@ -421,7 +466,7 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
   </div>
   <input type="file" id="file" multiple accept=".zip,.xlsx,.csv,.json" hidden>
   <nav class="nav" id="nav" aria-label="Разделы" hidden>
-    <a href="#today">Сегодня</a><a href="#tracker">Трекер</a><a href="#recovery">Восстановление</a><a href="#load">Нагрузка</a><a href="#plan">План</a><a href="#cardio">Кардио</a><a href="#body">Тело</a><a href="#bp">Давление</a><a href="#labs">Анализы</a><a href="#data">Источники</a>
+    <a href="#today">Сегодня</a><a href="#tracker">Трекер</a><a href="#nutrition">Питание</a><a href="#cooking">Готовка</a><a href="#recovery">Восстановление</a><a href="#load">Нагрузка</a><a href="#plan">План</a><a href="#cardio">Кардио</a><a href="#body">Тело</a><a href="#bp">Давление</a><a href="#labs">Анализы</a><a href="#data">Источники</a>
   </nav>
 </header>
 <div id="status" class="status" role="status" aria-live="polite" hidden></div>
@@ -436,6 +481,7 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
         <li><b>Анализы</b> — шаблон <b>raw\labs\labs.xlsx</b>: впишите значения и загрузите.</li>
         <li><b>План тренировок</b> — <b>training\plan.json</b>: один раз, дальше он хранится в ваших данных.</li>
         <li><b>Трекер</b> — копия отметок <b>training\tracker\tracker_….json</b>, если браузер потерял данные.</li>
+        <li><b>Питание</b> — <b>nutrition\nutrition.json</b>: меню, рецепты, закупка.</li>
       </ol>
       <div class="dropzone">
         <div>Перетащите файлы в это окно</div>
@@ -991,7 +1037,8 @@ const Parsers = (() => {
       try { obj = JSON.parse(text.replace(/^\uFEFF/, '')); } catch (e) { throw new Error('JSON-файл повреждён'); }
       if (obj && obj.app === 'health-tracker') return { kind: 'tracker', obj };
       if (obj && obj.app === 'health-plan') return { kind: 'plan', obj };
-      throw new Error('JSON не распознан: ожидается план (plan.json) или копия трекера (tracker_ГГГГ-ММ-ДД.json)');
+      if (obj && obj.app === 'health-nutrition') return { kind: 'nutrition', obj };
+      throw new Error('JSON не распознан: ожидается план (plan.json), меню (nutrition.json) или копия трекера (tracker_ГГГГ-ММ-ДД.json)');
     }
     const { rows } = parseCsv(text);
     const res = parseTable(rows, false);
@@ -1683,6 +1730,9 @@ const Charts = (() => {
     if (res.kind === 'plan') {
       return importPlan(res.obj);
     }
+    if (res.kind === 'nutrition') {
+      return importNutrition(res.obj);
+    }
     if (res.kind === 'garmin') {
       Object.assign(D.garmin.days, res.days);
       Object.assign(D.garmin.activities, res.activities);
@@ -1748,7 +1798,9 @@ const Charts = (() => {
   let redraws = [];      // [{ sec, fn }] — отрисовка графиков по разделам
   let curSec = null;     // раздел, который сейчас строится
   const drawn = new Set(); // разделы, графики которых уже нарисованы при текущей ширине
-  const TABS = ['today', 'tracker', 'recovery', 'load', 'plan', 'cardio', 'body', 'bp', 'labs', 'data'];
+  const TABS = ['today', 'tracker', 'nutrition', 'cooking', 'recovery', 'load', 'plan', 'cardio', 'body', 'bp', 'labs', 'data'];
+  const NUTR_TABS = ['nutrition', 'cooking'];
+  let availTabs = TABS;
   const LS_TAB = 'health-dashboard-tab';
   const tabFromHash = () => { const t = location.hash.slice(1); return TABS.includes(t) ? t : null; };
   state.tab = tabFromHash() || (() => { try { const t = localStorage.getItem(LS_TAB); return TABS.includes(t) ? t : null; } catch (e) { return null; } })() || 'today';
@@ -1852,8 +1904,13 @@ const Charts = (() => {
     const X = derive();
     document.getElementById('asof').textContent = X.asOf != null ? `данные на ${fmtDate(X.asOf)}` : '';
     document.querySelectorAll('.period button').forEach(b => b.setAttribute('aria-checked', String(String(state.period) === b.dataset.p)));
-    if (!X.hasAny) { emptyBox.hidden = false; dash.hidden = true; document.getElementById('nav').hidden = true; return; }
+    // Разделы здоровья — при наличии данных Garmin/Picooc/анализов; питание и готовка — при загруженном меню
+    availTabs = X.hasAny ? TABS : (hasNutrition() ? NUTR_TABS : []);
+    document.querySelector('.topbar .period').hidden = !X.hasAny;   // период — только для разделов здоровья
+    document.querySelectorAll('#nav a').forEach(a => { a.hidden = !availTabs.includes(a.getAttribute('href').slice(1)); });
+    if (!availTabs.length) { emptyBox.hidden = false; dash.hidden = true; document.getElementById('nav').hidden = true; return; }
     emptyBox.hidden = true; dash.hidden = false; document.getElementById('nav').hidden = false;
+    if (!X.hasAny) { renderNutrition(); renderCooking(); showTab(state.tab); return; }
 
     const dP = X.daily.filter(r => X.inP(r.t));
     const bodyP = X.body.filter(r => X.inP(r.t));
@@ -1864,6 +1921,8 @@ const Charts = (() => {
 
     renderToday(X, dP, bodyP, x0, x1);
     renderTracker(X);
+    renderNutrition();
+    renderCooking();
     renderRecovery(dP, x0, x1);
     renderLoad(dP, actsP, x0, x1, X);
     renderPlan(X, dP, x0, x1);
@@ -1878,7 +1937,7 @@ const Charts = (() => {
   /* ------------------------------------------------------------ вкладки */
   // Виден один раздел; графики рисуются при первом показе (у скрытого блока нулевая ширина)
   function showTab(id) {
-    if (!TABS.includes(id)) id = 'today';
+    if (!availTabs.includes(id)) id = availTabs[0] || 'today';
     state.tab = id;
     try { localStorage.setItem(LS_TAB, id); } catch (e) { /* нет хранилища */ }
     for (const sec of dash.querySelectorAll(':scope > section')) sec.hidden = sec.id !== id;
@@ -3008,6 +3067,163 @@ const Charts = (() => {
   }
 
 /*@end:tracker*/
+/*@core:nutrition*/
+  /* ============================================================================
+     nutrition — меню, порции, КБЖУ, закупка и заготовка. Параметров меню в коде нет:
+     всё приходит из nutrition\nutrition.json (app: health-nutrition) → «Загрузить выгрузки».
+     Хранится в браузере отдельно (ключ health-nutrition-v1): данные меню + отметки
+     «куплено» / «приготовлено».
+     ========================================================================== */
+  const NT_KEY = 'health-nutrition-v1';
+  const NUTR_KEYS = ['kcal', 'P', 'F', 'SF', 'C', 'Fib', 'Salt', 'Fe'];
+  const SLOTS = [['B', 'Завтрак'], ['L', 'Обед'], ['S', 'Перекус'], ['D', 'Ужин'], ['X', 'Сквош']];
+  const SRC = {
+    morning: { label: 'готовится утром', short: 'утром', color: 'var(--muted)' },
+    fresh: { label: 'готовится в этот день', short: 'свежее', color: 'var(--s3)' },
+    fridge: { label: 'заготовка, холодильник', short: 'холодильник', color: 'var(--s1)' },
+    freezer: { label: 'заготовка, морозилка', short: 'морозилка', color: 'var(--s7)' },
+    ready: { label: 'готовое из магазина', short: 'готовое', color: 'var(--s4)' },
+    squash: { label: 'добавка в день сквоша', short: 'добавка', color: 'var(--s2)' },
+  };
+  const WD_SUN = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  let NT = null;
+  function ntLoad() {
+    try { const raw = localStorage.getItem(NT_KEY); if (raw) { const o = JSON.parse(raw); if (o && typeof o === 'object') NT = o; } } catch (e) { /* нет хранилища */ }
+    if (!NT) NT = { v: 1, data: null, marks: {}, updatedAt: null };
+    NT.marks = NT.marks || {};
+  }
+  function ntSave(silent) {
+    NT.updatedAt = new Date().toISOString();
+    let ok = true;
+    try { localStorage.setItem(NT_KEY, JSON.stringify(NT)); } catch (e) { ok = false; }
+    if (!silent) Sync.changed('nutrition');
+    return ok;
+  }
+  ntLoad();
+  const NTD = () => NT.data;
+  const hasNutrition = () => !!(NT.data && NT.data.start && Array.isArray(NT.data.weeks) && NT.data.weeks.length);
+  function importNutrition(obj) {
+    const n = obj.nutrition;
+    if (!n || !n.start || !Array.isArray(n.weeks) || !n.recipes || !n.products || !Array.isArray(n.people)) throw new Error('В файле нет меню (start, weeks, recipes, products, people)');
+    NT.data = { ...n, mt: new Date().toISOString() };
+    ntSave();
+    const nr = Object.keys(n.recipes).length;
+    return `меню «${n.name || 'без названия'}»: ${n.weeks.length} нед. по кругу с ${fmtDate(U.dayMs(n.start))}, рецептов ${nr}, людей ${n.people.length}; отметки сохранены`;
+  }
+  // Слияние двух копий (синхронизация): меню — по времени загрузки, отметки — по записям
+  function mergeNutrition(a, b) {
+    if (!a || !a.data) return b; if (!b || !b.data) return a;
+    const data = (a.data.mt || '') >= (b.data.mt || '') ? a.data : b.data;
+    const marks = { ...(a.marks || {}) };
+    for (const [k, v] of Object.entries(b.marks || {})) if (!marks[k] || (v.at || '') > (marks[k].at || '')) marks[k] = v;
+    return { v: 1, data, marks, updatedAt: (a.updatedAt || '') >= (b.updatedAt || '') ? a.updatedAt : b.updatedAt };
+  }
+
+  /* ---------------- календарь меню: неделя начинается в воскресенье (день заготовки) */
+  const ntStart = () => U.dayMs(NTD().start);
+  const ntCycle = () => NTD().weeks.length;
+  const ntWeekNo = (t) => Math.floor((t - ntStart()) / (7 * DAY));                 // номер недели от старта (может быть < 0)
+  const ntWeekStart = (w) => ntStart() + w * 7 * DAY;
+  const ntMenuIdx = (w) => ((w % ntCycle()) + ntCycle()) % ntCycle();              // 0..cycle-1
+  const ntToday = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
+  function ntDay(t) {
+    const w = ntWeekNo(t), idx = ntMenuIdx(w), dow = Math.round((t - ntWeekStart(w)) / DAY);
+    return { t, w, idx, dow, wd: WD_SUN[dow], day: NTD().weeks[idx].days[dow], before: t < ntStart() };
+  }
+  // День сквоша: по трекеру тренировок (если дата в его периоде), иначе — по типовой неделе меню
+  function ntSquash(t) {
+    const date = U.msToDate(t);
+    if (typeof TR !== 'undefined' && TR && TR.start && TR.weeks) {
+      const s0 = U.dayMs(TR.start), s1 = s0 + TR.weeks * 7 * DAY;
+      if (t >= s0 && t < s1) return Object.values(TR.sessions || {}).some(s => s.date === date && s.kind === 'squash');
+    }
+    return (NTD().squashDefault || []).includes(ntDay(t).dow);
+  }
+  const ntPerson = (id) => NTD().people.find(p => p.id === id) || NTD().people[0];
+  // Приёмы пищи дня для человека: [{slot, label, rid, src}]
+  function ntMeals(t, p) {
+    const { day } = ntDay(t);
+    const out = [];
+    for (const [slot, label] of SLOTS) {
+      if (slot === 'X') { if (p.squash && ntSquash(t) && NTD().squashExtra) out.push({ slot, label, rid: NTD().squashExtra, src: 'squash' }); continue; }
+      if (day[slot]) out.push({ slot, label, rid: day[slot], src: (day.src || {})[slot] || 'morning' });
+    }
+    return out;
+  }
+  // Порция: граммы на человека (ингредиенты «только Виктору» у других — 0)
+  function ntPortion(rid, p) {
+    const r = NTD().recipes[rid];
+    if (!r) return [];
+    return (r.ingr || []).map(([prod, g, only]) => ({ prod, g: only && only !== p.id ? 0 : g * p.factor, only })).filter(x => x.g > 0);
+  }
+  function ntNutr(rid, p) {
+    const r = NTD().recipes[rid];
+    const t = Object.fromEntries(NUTR_KEYS.map(k => [k, 0]));
+    if (!r) return t;
+    if (r.fixed) { for (const k of NUTR_KEYS) t[k] = (r.fixed[k] || 0) * p.factor; return t; }
+    for (const { prod, g } of ntPortion(rid, p)) {
+      const q = NTD().products[prod];
+      if (!q) continue;
+      const k = g / 100;
+      t.P += q.P * k; t.F += q.F * k; t.SF += q.SF * k; t.C += q.C * k; t.Fib += q.Fib * k; t.Salt += q.Salt * k; t.Fe += (q.Fe || 0) * k;
+      t.kcal += (4 * q.P + 9 * q.F + 4 * q.C + 2 * q.Fib) * k;   // Атуотер: 4 Б + 9 Ж + 4 У + 2 клетчатка
+    }
+    return t;
+  }
+  function ntDayTotals(t, p) {
+    const tot = Object.fromEntries(NUTR_KEYS.map(k => [k, 0]));
+    for (const m of ntMeals(t, p)) { const n = ntNutr(m.rid, p); for (const k of NUTR_KEYS) tot[k] += n[k]; }
+    return tot;
+  }
+  // Цель на день: значение с поправкой на сквош и режим (target ±5 %, min, max)
+  function ntTarget(p, k, t) {
+    const x = (p.targets || []).find(q => q.k === k);
+    if (!x) return null;
+    const v = x.v + (x.squashAdd && p.squash && t != null && ntSquash(t) ? x.squashAdd : 0);
+    return { ...x, v };
+  }
+  function ntTone(val, tg) {
+    if (!tg) return 'none';
+    if (tg.mode === 'min') return val >= tg.v - 1e-9 ? 'good' : 'bad';
+    if (tg.mode === 'max') return val <= tg.v + 1e-9 ? 'good' : 'bad';
+    return Math.abs(val - tg.v) <= tg.v * (tg.tol != null ? tg.tol : 0.05) ? 'good' : 'bad';
+  }
+
+  /* ---------------- закупка и заготовка на неделю (Вс–Сб), на всех людей */
+  function ntShopping(w) {
+    const items = {}; let ready = 0;
+    for (let d = 0; d < 7; d++) {
+      const t = ntWeekStart(w) + d * DAY;
+      for (const p of NTD().people) for (const m of ntMeals(t, p)) {
+        const r = NTD().recipes[m.rid];
+        if (r && r.kind === 'ready') { ready++; continue; }
+        for (const { prod, g } of ntPortion(m.rid, p)) items[prod] = (items[prod] || 0) + g;
+      }
+    }
+    return { items, ready };
+  }
+  // Блюда заготовки недели: всего сырого на все дни и людей, доли готового по людям
+  function ntBatch(w) {
+    const idx = ntMenuIdx(w);
+    const b = (NTD().batch || []).find(x => x.week === idx + 1);
+    if (!b) return null;
+    const people = NTD().people;
+    const sumF = people.reduce((a, p) => a + p.factor, 0);
+    const dishes = b.dishes.map(dsh => {
+      const r = NTD().recipes[dsh.r];
+      const ingr = (r.ingr || []).map(([prod, g, only]) => {
+        const eaters = people.filter(p => !only || only === p.id);
+        return { prod, g, only, total: g * eaters.reduce((a, p) => a + p.factor, 0) * dsh.days };
+      });
+      const shares = people.map(p => ({ id: p.id, name: p.name, share: p.factor / sumF, containers: dsh.days - (dsh.where === 'fridge' && dsh.use.startsWith('ужин Вс') ? 1 : 0) }));
+      return { ...dsh, recipe: r, ingr, shares };
+    });
+    return { ...b, dishes };
+  }
+  const markKey = (type, w, id) => `${type}|${U.msToDate(ntWeekStart(w))}|${id}`;
+  const isMarked = (key) => !!(NT.marks[key] && NT.marks[key].on);
+  function setMark(key, on) { NT.marks[key] = { on: !!on, at: new Date().toISOString() }; ntSave(); }
+/*@end:nutrition*/
   /* ------------------------------------------------------------ отрисовка */
   let trWeek = null;        // показанная неделя (индекс)
   let trX = null;           // последние производные данные дашборда
@@ -3446,6 +3662,335 @@ const Charts = (() => {
     return L.join('\n');
   }
 
+  /* ============================================================================
+     Вкладки «Питание» и «Готовка» (дашборд). Логика — в общем блоке nutrition.
+     ========================================================================== */
+  const LS_NPERSON = 'health-nutrition-person';
+  const LS_CKPANEL = 'health-cooking-panel';
+  let ntW = null, ntHost = null, ckHost = null;
+  let ntPid = (() => { try { return localStorage.getItem(LS_NPERSON) || 'v'; } catch (e) { return 'v'; } })();
+  let ckPanel = (() => { try { return localStorage.getItem(LS_CKPANEL) || 'buy'; } catch (e) { return 'buy'; } })();
+  const g0 = (g) => (g >= 1000 ? `${N2.format(g / 1000)} кг` : `${N0.format(g)} г`);
+  const gPortion = (g) => (g < 10 ? `${N1.format(g)} г` : `${N0.format(Math.round(g / 5) * 5)} г`);
+  const curNtWeek = () => Math.max(0, ntWeekNo(ntToday()));
+  const segmented = (items, cur, onPick, label) => {
+    const box = h('div', 'period'); box.setAttribute('role', 'radiogroup'); if (label) box.setAttribute('aria-label', label);
+    for (const [id, text] of items) {
+      const b = h('button', null, text); b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(id === cur));
+      b.onclick = () => onPick(id); box.appendChild(b);
+    }
+    return box;
+  };
+  function ntNoData(sec, title) {
+    const hd = h('div', 'section-head'); hd.appendChild(h('h2', null, title)); sec.appendChild(hd);
+    const c = h('article', 'card wide');
+    c.appendChild(h('h3', null, 'Меню не загружено'));
+    c.appendChild(h('p', 'card-sub', 'Нажмите «Загрузить выгрузки» и выберите nutrition\\nutrition.json. Меню сохранится в этом браузере; в коде сайта его нет.'));
+    sec.appendChild(c);
+  }
+  function ntWeekNav(onChange) {
+    const nav = h('div', 'tr-nav');
+    const cur = curNtWeek();
+    const prev = h('button', 'btn small', '←'); prev.type = 'button'; prev.disabled = ntW <= 0; prev.setAttribute('aria-label', 'Предыдущая неделя');
+    prev.onclick = () => { ntW--; onChange(); };
+    const next = h('button', 'btn small', '→'); next.type = 'button'; next.setAttribute('aria-label', 'Следующая неделя');
+    next.onclick = () => { ntW++; onChange(); };
+    const t0 = ntWeekStart(ntW);
+    const title = h('div', 'tr-nav-title');
+    title.appendChild(h('b', null, `Неделя меню ${ntMenuIdx(ntW) + 1}`));
+    title.appendChild(h('span', 'muted', ` ${fmtDate(t0).slice(0, 5)} — ${fmtDate(t0 + 6 * DAY)}`));
+    nav.appendChild(prev); nav.appendChild(title); nav.appendChild(next);
+    if (ntW !== cur) { const tb = h('button', 'btn ghost small', 'К текущей'); tb.type = 'button'; tb.onclick = () => { ntW = cur; onChange(); }; nav.appendChild(tb); }
+    return nav;
+  }
+  const srcBadge = (src) => { const s = SRC[src] || SRC.morning; const b = h('span', 'nt-src', s.short); b.style.setProperty('--c', s.color); b.title = s.label; return b; };
+
+  /* ---------------- Питание */
+  function renderNutrition() {
+    const sec = h('section', 'section'); sec.id = 'nutrition'; curSec = 'nutrition'; dash.appendChild(sec);
+    ntHost = sec; ntDraw();
+  }
+  function ntDraw() {
+    const sec = ntHost; if (!sec) return;
+    sec.replaceChildren();
+    if (!hasNutrition()) return ntNoData(sec, 'Питание');
+    const N = NTD();
+    const today = ntToday();
+    if (ntW == null) ntW = curNtWeek();
+    const p = ntPerson(ntPid);
+    const head = h('div', 'section-head');
+    head.appendChild(h('h2', null, 'Питание'));
+    const before = today < ntStart();
+    head.appendChild(h('p', 'section-note', `Меню «${N.name || 'без названия'}»: ${ntCycle()} нед. по кругу с ${fmtDate(ntStart())}. ${before ? `До старта ${Math.round((ntStart() - today) / DAY)} дн.` : `Сейчас неделя меню ${ntMenuIdx(ntWeekNo(today)) + 1}.`} Нажмите на блюдо — рецепт и граммы.`));
+    sec.appendChild(head);
+    const ctl = h('div', 'nt-ctl');
+    ctl.appendChild(segmented(N.people.map(q => [q.id, q.name]), p.id, (id) => { ntPid = id; try { localStorage.setItem(LS_NPERSON, id); } catch (e) { /* нет */ } ntDraw(); }, 'Чьё меню'));
+    ctl.appendChild(ntWeekNav(() => { ntDraw(); ckDraw(); }));
+    sec.appendChild(ctl);
+
+    const week = h('div', 'tr-week nt-week');
+    const rows = [];
+    for (let d = 0; d < 7; d++) {
+      const t = ntWeekStart(ntW) + d * DAY;
+      const info = ntDay(t);
+      const sq = p.squash && ntSquash(t);
+      const col = h('div', 'tr-day nt-day' + (t === today ? ' today' : ''));
+      const dh = h('div', 'tr-day-head');
+      dh.appendChild(h('span', 'tr-dow', info.wd));
+      dh.appendChild(h('span', 'tr-date', fmtDate(t).slice(0, 5)));
+      if (sq) { const c = h('span', 'nt-sq', 'сквош'); c.title = 'День сквоша (по трекеру): добавка углеводов'; dh.appendChild(c); }
+      col.appendChild(dh);
+      for (const m of ntMeals(t, p)) {
+        const r = N.recipes[m.rid] || { name: m.rid };
+        const n = ntNutr(m.rid, p);
+        const b = h('button', 'nt-meal'); b.type = 'button';
+        b.style.setProperty('--c', (SRC[m.src] || SRC.morning).color);
+        const top = h('div', 'nt-meal-top'); top.appendChild(h('span', 'nt-slot', m.label)); top.appendChild(srcBadge(m.src)); b.appendChild(top);
+        b.appendChild(h('div', 'nt-meal-name', r.name));
+        b.appendChild(h('div', 'nt-meal-meta', `${f0(n.kcal)} ккал · Б ${f0(n.P)}`));
+        b.onclick = () => ntRecipeDialog(m.rid, p);
+        col.appendChild(b);
+      }
+      const tot = ntDayTotals(t, p);
+      const tk = ntTarget(p, 'kcal', t), tp = ntTarget(p, 'P', t);
+      const sum = h('div', 'nt-day-sum');
+      const k1 = h('span', 'nt-' + ntTone(tot.kcal, tk), `${f0(tot.kcal)} ккал`); k1.title = tk ? `цель ${f0(tk.v)}` : '';
+      const k2 = h('span', 'nt-' + ntTone(tot.P, tp), `Б ${f0(tot.P)}`); k2.title = tp ? `цель ${tp.mode === 'min' ? '≥ ' : ''}${f0(tp.v)} г` : '';
+      sum.appendChild(k1); sum.appendChild(h('span', 'muted', ' · ')); sum.appendChild(k2);
+      col.appendChild(sum);
+      if (info.day.note) col.appendChild(h('div', 'nt-note', info.day.note));
+      week.appendChild(col);
+      rows.push({ t, info, tot, sq });
+    }
+    sec.appendChild(week);
+    const lg = h('div', 'legend tr-legend');
+    for (const k of ['morning', 'fresh', 'fridge', 'freezer', 'ready', 'squash']) { const li = h('span', 'legend-item'); const key = h('span', 'legend-key rect'); key.style.setProperty('--c', SRC[k].color); li.appendChild(key); li.appendChild(h('span', null, SRC[k].label)); lg.appendChild(li); }
+    sec.appendChild(lg);
+
+    // КБЖУ по дням против целей
+    const grid = h('div', 'grid'); grid.style.marginTop = '16px'; sec.appendChild(grid);
+    const c = h('article', 'card wide');
+    const ch = h('div', 'card-head'); const ct = h('div', 'card-titles');
+    ct.appendChild(h('h3', null, `КБЖУ по дням — ${p.name}`));
+    ct.appendChild(h('p', 'card-sub', `Порция = базовая × ${N2.format(p.factor)}. Красным — вне цели: ${(p.targets || []).filter(q => q.mode === 'target').map(q => `${q.label.toLowerCase()} ±${Math.round((q.tol != null ? q.tol : 0.05) * 100)} %`).join(', ')}; «≥» — минимум, «≤» — максимум.`));
+    ch.appendChild(ct); c.appendChild(ch);
+    const keys = NUTR_KEYS.filter(k => k === 'kcal' || (p.targets || []).some(q => q.k === k) || ['P', 'F', 'C'].includes(k));
+    const LBL = { kcal: 'ккал', P: 'Белки, г', F: 'Жиры, г', SF: 'НЖК, г', C: 'Углеводы, г', Fib: 'Клетчатка, г', Salt: 'Соль, г', Fe: 'Железо, мг' };
+    const tbl = h('table', 'data-table nt-table');
+    const thr = h('tr'); thr.appendChild(h('th', null, 'День')); for (const k of keys) { const th = h('th', 'num', LBL[k]); thr.appendChild(th); }
+    const thead = h('thead'); thead.appendChild(thr); tbl.appendChild(thead);
+    const tb = h('tbody');
+    const fmtK = (k, v) => (k === 'Salt' || k === 'Fe' || k === 'SF' ? f1(v) : f0(v));
+    for (const r of rows) {
+      const tr = h('tr'); if (r.t === today) tr.className = 'current';
+      tr.appendChild(h('td', null, `${r.info.wd} ${fmtDate(r.t).slice(0, 5)}${r.sq ? ' · сквош' : ''}`));
+      for (const k of keys) { const tg = ntTarget(p, k, r.t); const td = h('td', 'num' + (tg && ntTone(r.tot[k], tg) === 'bad' ? ' bad-text' : ''), fmtK(k, r.tot[k])); tr.appendChild(td); }
+      tb.appendChild(tr);
+    }
+    const avg = h('tr'); avg.appendChild(h('td', 'strong', 'Среднее'));
+    for (const k of keys) avg.appendChild(h('td', 'num strong', fmtK(k, rows.reduce((a, r) => a + r.tot[k], 0) / rows.length)));
+    tb.appendChild(avg);
+    const tgr = h('tr'); tgr.appendChild(h('td', 'muted', 'Цель'));
+    for (const k of keys) { const tg = ntTarget(p, k, null); tgr.appendChild(h('td', 'num muted', tg ? `${tg.mode === 'min' ? '≥ ' : tg.mode === 'max' ? '≤ ' : ''}${f0(tg.v)}${tg.squashAdd ? ` (+${f0(tg.squashAdd)})` : ''}` : '')); }
+    tb.appendChild(tgr);
+    tbl.appendChild(tb);
+    const wrap = h('div', 'table-wrap'); wrap.style.maxHeight = 'none'; wrap.appendChild(tbl); c.appendChild(wrap);
+    c.appendChild(h('p', 'note', 'ккал = 4 × белки + 9 × жиры + 4 × углеводы + 2 × клетчатка. Состав — справочные средние, ±10 %; соль — из продуктов и отмеренная по рецепту. «(+…)» — прибавка в день сквоша.'));
+    grid.appendChild(c);
+    if ((p.notes || []).length) {
+      const nc = h('article', 'card wide');
+      nc.appendChild(h('h3', null, `Правила — ${p.name}`));
+      const ul = h('ul', 'nt-list'); for (const n of p.notes) ul.appendChild(h('li', null, n)); nc.appendChild(ul);
+      grid.appendChild(nc);
+    }
+  }
+
+  // Рецепт: граммы для выбранного человека (или для всех — в «Готовке»)
+  function ntRecipeDialog(rid, p) {
+    const r = NTD().recipes[rid];
+    if (!r) return;
+    const dlg = h('dialog', 'tr-dialog');
+    dlg.addEventListener('close', () => dlg.remove());
+    const hd = h('div', 'tr-dlg-head'); hd.appendChild(h('h3', null, r.name)); dlg.appendChild(hd);
+    dlg.appendChild(h('p', 'tr-dlg-detail', `${p.name}: ${ntNutrLine(ntNutr(rid, p))}`));
+    if (r.time || r.storage) dlg.appendChild(h('p', 'muted small', [r.time && `Время: ${r.time}`, r.storage && `Хранение: ${r.storage}`].filter(Boolean).join('. ')));
+    const port = ntPortion(rid, p);
+    if (port.length) {
+      const wrap = h('div');
+      Charts.table(wrap, [{ label: 'Продукт' }, { label: `${p.name}, г`, num: true }], port.map(x => [x.prod + (x.only ? ' (только Виктору)' : ''), gPortion(x.g)]));
+      dlg.appendChild(wrap);
+    }
+    if ((r.steps || []).length) { const ol = h('ol', 'tr-dlg-items'); for (const s of r.steps) ol.appendChild(h('li', null, s)); dlg.appendChild(ol); }
+    const act = h('div', 'data-actions');
+    const cl = h('button', 'btn primary', 'Закрыть'); cl.type = 'button'; cl.onclick = () => dlg.close();
+    act.appendChild(cl); dlg.appendChild(act);
+    document.body.appendChild(dlg);
+    dlg.showModal();
+  }
+  const ntNutrLine = (n) => `${f0(n.kcal)} ккал · Б ${f0(n.P)} · Ж ${f0(n.F)} (НЖК ${f1(n.SF)}) · У ${f0(n.C)} · клетчатка ${f0(n.Fib)} · соль ${f1(n.Salt)} г · железо ${f1(n.Fe)} мг`;
+
+  /* ---------------- Готовка */
+  function renderCooking() {
+    const sec = h('section', 'section'); sec.id = 'cooking'; curSec = 'cooking'; dash.appendChild(sec);
+    ckHost = sec; ckDraw();
+  }
+  function ckDraw() {
+    const sec = ckHost; if (!sec) return;
+    sec.replaceChildren();
+    if (!hasNutrition()) return ntNoData(sec, 'Готовка');
+    const N = NTD();
+    if (ntW == null) ntW = curNtWeek();
+    const head = h('div', 'section-head');
+    head.appendChild(h('h2', null, 'Готовка'));
+    head.appendChild(h('p', 'section-note', `Закупка, воскресная заготовка и рецепты на всех: ${N.people.map(q => `${q.name}${q.factor !== 1 ? ` (порция × ${N2.format(q.factor)})` : ''}`).join(', ')}. Неделя — с воскресенья по субботу.`));
+    sec.appendChild(head);
+    const ctl = h('div', 'nt-ctl');
+    ctl.appendChild(ntWeekNav(() => { ckDraw(); ntDraw(); }));
+    ctl.appendChild(segmented([['buy', 'Закупка'], ['batch', 'Заготовка'], ['recipes', 'Рецепты'], ['ready', 'Готовые блюда']], ckPanel, (id) => { ckPanel = id; try { localStorage.setItem(LS_CKPANEL, id); } catch (e) { /* нет */ } ckDraw(); }, 'Раздел готовки'));
+    sec.appendChild(ctl);
+    const body = h('div', 'ck-body'); sec.appendChild(body);
+    ({ buy: ckBuy, batch: ckBatch, recipes: ckRecipes, ready: ckReady }[ckPanel] || ckBuy)(body);
+  }
+
+  const STORE_ORDER = ['Metro', 'Metro / Перекрёсток', 'Metro / ВкусВилл', 'Metro / любой', 'Перекрёсток / Metro', 'Перекрёсток', 'Перекрёсток / Лавка', 'ВкусВилл', 'ВкусВилл / Лавка', 'Любой'];
+  function ckBuy(body) {
+    const N = NTD();
+    const { items, ready } = ntShopping(ntW);
+    const waste = N.waste || 0;
+    const list = Object.entries(items).filter(([prod]) => prod !== 'Соль').map(([prod, g]) => {
+      const q = N.products[prod] || {};
+      return { prod, g, buy: Math.ceil(g * (1 + waste) / 10) * 10, store: q.store || 'Любой', cat: q.cat || '', hint: q.hint || '', key: markKey('buy', ntW, prod) };
+    });
+    if (ready) list.push({ prod: 'Готовое блюдо', g: 0, pcs: ready, store: 'ВкусВилл / Лавка', cat: 'Готовые блюда', hint: 'критерии — «Готовые блюда»', key: markKey('buy', ntW, 'ГОТ') });
+    const done = list.filter(x => isMarked(x.key)).length;
+    const top = h('div', 'ck-top');
+    top.appendChild(h('div', 'ck-count', `Куплено ${done} из ${list.length}`));
+    top.appendChild(progress(list.length ? done / list.length : 0));
+    const copy = h('button', 'btn small', 'Скопировать список'); copy.type = 'button';
+    copy.onclick = async () => {
+      const txt = list.filter(x => !isMarked(x.key)).map(x => `${x.prod} — ${x.pcs ? x.pcs + ' шт' : g0(x.buy)}`).join('\n');
+      try { await navigator.clipboard.writeText(txt); toast('Список скопирован', 'Только некупленное'); } catch (e) { toast('Не удалось скопировать', 'Браузер не дал доступ к буферу обмена'); }
+    };
+    top.appendChild(copy);
+    body.appendChild(top);
+    body.appendChild(h('p', 'note', `Купить = нетто по меню на неделю ${fmtDate(ntWeekStart(ntW)).slice(0, 5)}–${fmtDate(ntWeekStart(ntW) + 6 * DAY).slice(0, 5)} + ${Math.round(waste * 100)} % на отходы, округлено вверх. Закупка — в субботу или в воскресенье до заготовки.`));
+    const stores = [...new Set(list.map(x => x.store))].sort((a, b) => (STORE_ORDER.indexOf(a) + 1 || 99) - (STORE_ORDER.indexOf(b) + 1 || 99));
+    const grid = h('div', 'ck-stores');
+    for (const st of stores) {
+      const c = h('article', 'card ck-store');
+      const its = list.filter(x => x.store === st).sort((a, b) => a.cat.localeCompare(b.cat) || a.prod.localeCompare(b.prod));
+      const nd = its.filter(x => isMarked(x.key)).length;
+      c.appendChild(h('h3', null, `${st} · ${nd}/${its.length}`));
+      for (const x of its) {
+        const on = isMarked(x.key);
+        const row = h('label', 'ck-item' + (on ? ' on' : ''));
+        const cb = h('input'); cb.type = 'checkbox'; cb.checked = on;
+        cb.onchange = () => { setMark(x.key, cb.checked); ckDraw(); };
+        row.appendChild(cb);
+        const tx = h('span', 'ck-item-text');
+        tx.appendChild(h('span', 'ck-item-name', x.prod));
+        if (x.hint) tx.appendChild(h('span', 'ck-item-hint', x.hint));
+        row.appendChild(tx);
+        row.appendChild(h('span', 'ck-item-qty', x.pcs ? `${x.pcs} шт` : g0(x.buy)));
+        c.appendChild(row);
+      }
+      grid.appendChild(c);
+    }
+    body.appendChild(grid);
+  }
+
+  function ckBatch(body) {
+    const N = NTD();
+    const b = ntBatch(ntW);
+    if (!b) { body.appendChild(h('p', 'note', 'Для этой недели меню заготовка не описана.')); return; }
+    const sunday = ntWeekStart(ntW);
+    body.appendChild(h('p', 'note', `Воскресенье ${fmtDate(sunday)}: 4 блюда на неделю. ${N.rules && N.rules.split ? N.rules.split : ''} ${N.rules && N.rules.salt ? N.rules.salt : ''}`));
+    const grid = h('div', 'ck-dishes');
+    for (const d of b.dishes) {
+      const key = markKey('cook', ntW, d.r);
+      const on = isMarked(key);
+      const c = h('article', 'card ck-dish' + (on ? ' on' : ''));
+      const hd = h('div', 'card-head'); const tt = h('div', 'card-titles');
+      tt.appendChild(h('h3', null, `${d.r}. ${d.recipe.name}`));
+      const s = SRC[d.where] || SRC.fridge;
+      tt.appendChild(h('p', 'card-sub', `${s.label} — ${d.use}. ${d.shares.map(x => `${x.name}: ${x.containers} конт., ${Math.round(x.share * 100)} % готового`).join(' · ')}`));
+      hd.appendChild(tt);
+      const lab = h('label', 'ck-done'); const cb = h('input'); cb.type = 'checkbox'; cb.checked = on; cb.onchange = () => { setMark(key, cb.checked); ckDraw(); };
+      lab.appendChild(cb); lab.appendChild(h('span', null, 'приготовлено'));
+      hd.appendChild(lab);
+      c.appendChild(hd);
+      const wrap = h('div');
+      Charts.table(wrap, [{ label: 'Продукт' }, { label: 'На заготовку', num: true }], d.ingr.map(x => [x.prod + (x.only ? ' — только Виктору' : ''), x.prod === 'Соль' ? `${N1.format(x.total)} г` : g0(Math.round(x.total))]));
+      c.appendChild(wrap);
+      const det = h('details', 'ck-steps'); det.appendChild(h('summary', null, 'Как готовить'));
+      const ol = h('ol', 'tr-dlg-items'); for (const st of d.recipe.steps || []) ol.appendChild(h('li', null, st)); det.appendChild(ol);
+      c.appendChild(det);
+      grid.appendChild(c);
+    }
+    body.appendChild(grid);
+    const tc = h('article', 'card wide'); tc.style.marginTop = '16px';
+    tc.appendChild(h('h3', null, 'План воскресенья'));
+    const tw = h('div'); Charts.table(tw, [{ label: 'Время' }, { label: 'Что делать' }], b.timeline); tc.appendChild(tw);
+    if (N.rules) {
+      if (N.rules.containers) tc.appendChild(h('p', 'note', N.rules.containers));
+      const ul = h('ul', 'nt-list'); for (const x of N.rules.storage || []) ul.appendChild(h('li', null, x)); tc.appendChild(ul);
+    }
+    body.appendChild(tc);
+  }
+
+  function ckRecipes(body) {
+    const N = NTD();
+    // рецепты недели в порядке меню
+    const ids = [];
+    for (let d = 0; d < 7; d++) {
+      const t = ntWeekStart(ntW) + d * DAY;
+      for (const p of N.people) for (const m of ntMeals(t, p)) if (!ids.includes(m.rid)) ids.push(m.rid);
+    }
+    const b = ntBatch(ntW);
+    const batchDays = Object.fromEntries((b ? b.dishes : []).map(d => [d.r, d.days]));
+    const groups = [['main', 'Обеды и ужины'], ['breakfast', 'Завтраки'], ['snack', 'Перекусы'], ['squash', 'Сквош'], ['ready', 'Готовое']];
+    for (const [kind, title] of groups) {
+      const list = ids.filter(id => (N.recipes[id] || {}).kind === kind);
+      if (!list.length) continue;
+      body.appendChild(h('h3', 'ck-group', title));
+      for (const id of list) {
+        const r = N.recipes[id];
+        const det = h('details', 'card ck-recipe');
+        const sm = h('summary');
+        sm.appendChild(h('span', 'ck-recipe-name', `${id}. ${r.name}`));
+        sm.appendChild(h('span', 'muted small', N.people.filter(p => kind !== 'squash' || p.squash).map(p => `${p.name} ${f0(ntNutr(id, p).kcal)} ккал`).join(' · ')));
+        det.appendChild(sm);
+        const eaters = N.people.filter(p => kind !== 'squash' || p.squash);
+        if ((r.ingr || []).length) {
+          const days = batchDays[id];
+          const cols = [{ label: 'Продукт' }, ...eaters.map(p => ({ label: `${p.name}, г`, num: true })), { label: days ? `На заготовку (${days} дн.)` : 'Всего за раз', num: true }];
+          const rows = r.ingr.map(([prod, g, only]) => {
+            const per = eaters.map(p => (only && only !== p.id ? 0 : g * p.factor));
+            const tot = per.reduce((a, x) => a + x, 0) * (days || 1);
+            return [prod + (only ? ' — только Виктору' : ''), ...per.map(x => (x ? gPortion(x) : '—')), prod === 'Соль' ? `${N1.format(tot)} г` : g0(Math.round(tot))];
+          });
+          const wrap = h('div'); Charts.table(wrap, cols, rows); det.appendChild(wrap);
+        }
+        det.appendChild(h('p', 'note nt-pre', eaters.map(p => `${p.name}: ${ntNutrLine(ntNutr(id, p))}`).join('\n')));
+        if (r.time || r.storage) det.appendChild(h('p', 'muted small', [r.time && `Время: ${r.time}`, r.storage && `Хранение: ${r.storage}`].filter(Boolean).join('. ')));
+        const ol = h('ol', 'tr-dlg-items'); for (const s of r.steps || []) ol.appendChild(h('li', null, s)); det.appendChild(ol);
+        body.appendChild(det);
+      }
+    }
+  }
+
+  function ckReady(body) {
+    const N = NTD(); const R0 = N.ready || {};
+    const c = h('article', 'card wide');
+    c.appendChild(h('h3', null, 'Критерии на порцию'));
+    const w = h('div'); Charts.table(w, [{ label: 'Показатель' }, { label: 'Порог' }, { label: 'Почему' }], R0.criteria || []); c.appendChild(w);
+    if ((R0.good || []).length) { c.appendChild(h('h3', 'ck-group', 'Что подходит')); const ul = h('ul', 'nt-list'); for (const x of R0.good) ul.appendChild(h('li', null, x)); c.appendChild(ul); }
+    if (R0.avoid) c.appendChild(h('p', 'note warn-note', 'Не подходит: ' + R0.avoid));
+    if (R0.example) c.appendChild(h('p', 'note', R0.example));
+    if (N.rules && N.rules.source) c.appendChild(h('p', 'muted small', N.rules.source));
+    body.appendChild(c);
+  }
+
 /*@core:sync*/
   /* ============================================================================
      sync — синхронизация через Google Диск. Работает только на сайте (https);
@@ -3458,14 +4003,17 @@ const Charts = (() => {
     const SCOPE = 'https://www.googleapis.com/auth/drive.file';
     const FOLDER = 'Health dashboard';
     const FILE = 'health-data.json.gz';
+    // Питание — отдельный файл в отдельной папке: ею можно поделиться, не открывая данные о здоровье
+    const FOLDER_N = 'Health dashboard — питание';
+    const FILE_N = 'nutrition-data.json.gz';
     const LS_SYNC = 'health-sync-v1';
     const API = 'https://www.googleapis.com/drive/v3';
     const UP = 'https://www.googleapis.com/upload/drive/v3';
     const enabled = location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
-    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
+    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, pendingN: false, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
     try { Object.assign(st, JSON.parse(localStorage.getItem(LS_SYNC) || '{}'), { busy: false, status: 'off', msg: '' }); } catch (e) { /* нет хранилища */ }
-    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
+    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, fileIdN: st.fileIdN, folderIdN: st.folderIdN, versionN: st.versionN, pendingN: st.pendingN, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
 
     let tokenClient = null, gisReady = null, timer = null;
     const hasToken = () => st.token && Date.now() < st.exp - 60000;
@@ -3488,14 +4036,14 @@ const Charts = (() => {
       if (st.busy) { text = 'Синхронизация…'; tone = 'busy'; }
       else if (st.status === 'error') { text = st.msg || 'Ошибка синхронизации'; tone = 'err'; }
       else if (st.status === 'offline') { text = st.pending ? 'Нет сети — изменения ждут' : 'Нет сети'; tone = 'warn'; }
-      else if (!hasToken()) { text = st.consented ? (st.pending ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = st.pending ? 'warn' : 'idle'; }
-      else if (st.pending) { text = 'Изменения ждут отправки'; tone = 'warn'; }
+      else if (!hasToken()) { const pend = st.pending || st.pendingN; text = st.consented ? (pend ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = pend ? 'warn' : 'idle'; }
+      else if (st.pending || st.pendingN) { text = 'Изменения ждут отправки'; tone = 'warn'; }
       else { text = st.lastSync ? `Синхронизировано ${today ? t : d + ' ' + t}` : 'Google Диск подключён'; tone = 'ok'; }
       const compact = chip.parentNode && chip.parentNode.hasAttribute('data-compact');
       if (compact) text = { busy: '…', err: 'Ошибка', warn: st.status === 'offline' ? 'Нет сети' : 'Отправка', ok: t || 'OK', idle: st.consented ? 'Синхр.' : 'Войти' }[tone] || text;
       chip.textContent = text;
       chip.dataset.tone = tone;
-      chip.title = 'Синхронизация с Google Диском: файл «Health dashboard/health-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
+      chip.title = 'Синхронизация с Google Диском: «Health dashboard/health-data.json.gz» и «Health dashboard — питание/nutrition-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
     }
 
     /* ---------------- вход Google (Google Identity Services, всплывающее окно) */
@@ -3534,7 +4082,7 @@ const Charts = (() => {
     }
     function signOut() {
       if (st.token && window.google && google.accounts) try { google.accounts.oauth2.revoke(st.token, () => {}); } catch (e) { /* нет */ }
-      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, status: 'off' });
+      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, status: 'off' });
       persist(); ui();
     }
 
@@ -3574,6 +4122,70 @@ const Charts = (() => {
       persist();
       return st.folderId;
     }
+    // Файл питания: поиск по имени среди файлов, доступных приложению
+    async function ensureFileN() {
+      if (st.fileIdN) {
+        try { const r = await api(`${API}/files/${st.fileIdN}?fields=id,version,trashed`); const m = await r.json(); if (!m.trashed) return m; }
+        catch (e) { if (e.code !== 404) throw e; }
+        st.fileIdN = null; st.versionN = null;
+      }
+      const r = await api(`${API}/files?q=${q(`name='${FILE_N}' and trashed=false`)}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) { st.fileIdN = f[0].id; persist(); return f[0]; }
+      return null;
+    }
+    async function ensureFolderN() {
+      if (st.folderIdN) return st.folderIdN;
+      const r = await api(`${API}/files?q=${q(`name='${FOLDER_N}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
+      const f = (await r.json()).files || [];
+      if (f.length) st.folderIdN = f[0].id;
+      else {
+        const c = await api(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER_N, mimeType: 'application/vnd.google-apps.folder' }) });
+        st.folderIdN = (await c.json()).id;
+      }
+      persist();
+      return st.folderIdN;
+    }
+    async function uploadN(doc) {
+      const body = await gz(doc);
+      if (st.fileIdN) {
+        const r = await api(`${UP}/files/${st.fileIdN}?uploadType=media&fields=id,version`, { method: 'PATCH', headers: { 'Content-Type': 'application/gzip' }, body });
+        return r.json();
+      }
+      const parent = await ensureFolderN();
+      const bd = 'hn' + Math.random().toString(36).slice(2);
+      const meta = { name: FILE_N, mimeType: 'application/gzip', parents: [parent], description: 'Меню, рецепты, отметки закупки и готовки (дашборд здоровья, вкладки «Питание» и «Готовка»)' };
+      const mp = new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bd}\r\nContent-Type: application/gzip\r\n\r\n`, body, `\r\n--${bd}--`]);
+      const r = await api(`${UP}/files?uploadType=multipart&fields=id,version`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${bd}` }, body: mp });
+      const m = await r.json();
+      st.fileIdN = m.id; persist();
+      return m;
+    }
+    const sameNutrition = (a, b) => !!a && !!b && canonN(a) === canonN(b);
+    const canonN = (x) => canon({ mt: (x.data || {}).mt || '', m: x.marks || {} });
+    // Синхронизация питания: скачать → слить (меню по времени загрузки, отметки по записям) → при необходимости отправить
+    async function syncNutrition() {
+      const meta = await ensureFileN();
+      let changed = false;
+      if (meta && meta.version !== st.versionN) {
+        const remote = await download(meta.id);
+        const rn = remote && remote.nutrition;
+        const merged = mergeNutrition(NT, rn);
+        if (merged && !sameNutrition(merged, NT)) { NT = merged; NT.marks = NT.marks || {}; ntSave(true); changed = true; }
+        st.versionN = meta.version;
+        if (st.pendingN || !sameNutrition(NT, rn || {})) await pushN();
+      } else if ((!meta && NT.data) || (meta && st.pendingN)) {
+        await pushN();
+      }
+      st.pendingN = false; persist();
+      return changed;
+    }
+    async function pushN() {
+      if (!NT.data) return;
+      const m = await uploadN({ app: 'health-nutrition-sync', v: 1, savedAt: new Date().toISOString(), nutrition: NT });
+      st.versionN = m.version; st.pendingN = false; persist();
+    }
+
     async function gz(obj) {
       const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'));
       return new Blob([await new Response(s).arrayBuffer()], { type: 'application/gzip' });
@@ -3668,6 +4280,7 @@ const Charts = (() => {
         } else if (!meta || st.pending) {
           await push();
         }
+        if (await syncNutrition()) changedLocal = true;
         st.pending = false; st.status = 'ok'; st.lastSync = new Date().toISOString(); persist();
         if (changedLocal) render();
       } catch (e) {
@@ -3687,9 +4300,10 @@ const Charts = (() => {
       st.pending = false; persist();
     }
     // локальное изменение → отправить через 2 с (пачкой)
-    function changed() {
+    function changed(kind) {
       if (!enabled) return;
-      st.pending = true; persist(); ui();
+      if (kind === 'nutrition') st.pendingN = true; else st.pending = true;
+      persist(); ui();
       clearTimeout(timer);
       timer = setTimeout(() => { if (hasToken() && navigator.onLine !== false) syncNow(); else { st.status = navigator.onLine === false ? 'offline' : st.status; ui(); } }, 2000);
     }
