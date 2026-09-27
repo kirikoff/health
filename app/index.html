@@ -233,6 +233,23 @@ textarea.note { width: 100%; font: inherit; font-size: 16px; color: var(--ink); 
 .tmr div { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--grid); }
 .tmr div:first-child { border-top: 0; }
 .tmr span:first-child { color: var(--muted); width: 72px; flex: none; }
+
+/* закупка */
+.buy-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.buy-top .grow b { font-size: 17px; }
+.buy-tools { display: flex; gap: 8px; margin: 8px 0 4px; }
+.buy-tools button { flex: 1; min-height: 40px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); font-size: 14px; cursor: pointer; }
+.buy-tools button[aria-pressed="true"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.bi { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--grid); min-height: 56px; cursor: pointer; width: 100%; text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; }
+.bi:first-child { border-top: 0; }
+.bi:active { background: var(--hover); }
+.bi-box { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--axis); flex: none; display: grid; place-items: center; font-size: 16px; font-weight: 700; color: #fff; }
+.bi.on .bi-box { background: var(--good); border-color: var(--good); }
+.bi-name { font-size: 16px; }
+.bi-hint { font-size: 12.5px; color: var(--muted); }
+.bi-qty { font-size: 16px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bi.on .bi-name, .bi.on .bi-qty { color: var(--muted); text-decoration: line-through; font-weight: 400; }
+.buy-done { text-align: center; padding: 20px 12px; color: var(--good-text); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -884,6 +901,22 @@ const U = {
     });
     return { ...b, dishes };
   }
+  // Список закупки на неделю: нетто + запас на отходы, округлено вверх до 10 г; готовые блюда — штуками
+  const STORE_ORDER = ['Metro', 'Metro / Перекрёсток', 'Metro / ВкусВилл', 'Metro / любой', 'Перекрёсток / Metro', 'Перекрёсток', 'Перекрёсток / Лавка', 'ВкусВилл', 'ВкусВилл / Лавка', 'Любой'];
+  function ntBuyList(w) {
+    const N = NTD();
+    const { items, ready } = ntShopping(w);
+    const waste = N.waste || 0;
+    const list = Object.entries(items).filter(([prod]) => prod !== 'Соль').map(([prod, g]) => {
+      const q = N.products[prod] || {};
+      return { prod, g, buy: Math.ceil(g * (1 + waste) / 10) * 10, store: q.store || 'Любой', cat: q.cat || '', hint: q.hint || '', key: markKey('buy', w, prod) };
+    });
+    if (ready) list.push({ prod: 'Готовое блюдо', g: 0, pcs: ready, store: 'ВкусВилл / Лавка', cat: 'Готовые блюда', hint: 'критерии — «Готовые блюда» на сайте', key: markKey('buy', w, 'ГОТ') });
+    return list.sort((a, b) => a.cat.localeCompare(b.cat) || a.prod.localeCompare(b.prod));
+  }
+  const ntStores = (list) => [...new Set(list.map(x => x.store))].sort((a, b) => (STORE_ORDER.indexOf(a) + 1 || 99) - (STORE_ORDER.indexOf(b) + 1 || 99));
+  // Неделя закупки: в субботу — следующая (закупка к воскресной заготовке), иначе текущая
+  const ntBuyWeek = () => { const t = ntToday(); if (t < ntStart()) return 0; const w = ntWeekNo(t); return ntDay(t).dow === 6 ? w + 1 : w; };
   const markKey = (type, w, id) => `${type}|${U.msToDate(ntWeekStart(w))}|${id}`;
   const isMarked = (key) => !!(NT.marks[key] && NT.marks[key].on);
   function setMark(key, on) { NT.marks[key] = { on: !!on, at: new Date().toISOString() }; ntSave(); }
@@ -1718,6 +1751,10 @@ const U = {
   /* ---------------------------------------------------------------- питание (только просмотр) */
   const LS_NPERSON = 'health-nutrition-person';
   let foodPid = (() => { try { return localStorage.getItem(LS_NPERSON) || 'v'; } catch (e) { return 'v'; } })();
+  const LS_FOODVIEW = 'health-app-food-view';
+  let foodView = (() => { try { return localStorage.getItem(LS_FOODVIEW) || 'menu'; } catch (e) { return 'menu'; } })();
+  let buyW = null, buyHide = false;
+  const gKg = (g) => (g >= 1000 ? `${N2.format(g / 1000)} кг` : `${N0.format(g)} г`);
   const gP = (g) => (g < 10 ? `${N1.format(g)} г` : `${N0.format(Math.round(g / 5) * 5)} г`);
   function renderFood() {
     titleEl.textContent = 'Питание';
@@ -1729,6 +1766,10 @@ const U = {
       return renderSyncCard();
     }
     const N = NTD();
+    const vs = h('div', 'seg');
+    for (const [id, text] of [['menu', 'Меню'], ['buy', 'Закупка']]) { const b = h('button', null, text); b.type = 'button'; b.setAttribute('aria-pressed', String(id === foodView)); b.onclick = () => { foodView = id; try { localStorage.setItem(LS_FOODVIEW, id); } catch (e) { /* нет */ } render(); window.scrollTo(0, 0); }; vs.appendChild(b); }
+    view.appendChild(vs);
+    if (foodView === 'buy') return renderBuy();
     if (N.people.length > 1) {
       const seg = h('div', 'seg');
       for (const q of N.people) { const b = h('button', null, q.name); b.type = 'button'; b.setAttribute('aria-pressed', String(q.id === foodPid)); b.onclick = () => { foodPid = q.id; try { localStorage.setItem(LS_NPERSON, q.id); } catch (e) { /* нет */ } render(); }; seg.appendChild(b); }
@@ -1798,6 +1839,57 @@ const U = {
     wk.appendChild(wl);
     view.appendChild(wk);
     view.appendChild(h('div', 'muted small', 'Закупка, заготовка и рецепты целиком — вкладка «Готовка» на сайте.'));
+  }
+
+  // Закупка: чеклист по магазинам, отметки синхронизируются с сайтом
+  function renderBuy() {
+    titleEl.textContent = 'Закупка';
+    if (buyW == null) buyW = ntBuyWeek();
+    const w = buyW, t0 = ntWeekStart(w);
+    const head = h('div', 'wk-head');
+    const prev = h('button', 'wk-nav', '‹'); prev.type = 'button'; prev.disabled = w <= 0; prev.setAttribute('aria-label', 'Предыдущая неделя');
+    prev.onclick = () => { buyW--; render(); };
+    const next = h('button', 'wk-nav', '›'); next.type = 'button'; next.setAttribute('aria-label', 'Следующая неделя');
+    next.onclick = () => { buyW++; render(); };
+    const tt = h('div', 'wk-t');
+    tt.appendChild(h('b', null, `${dm(t0)} — ${dm(t0 + 6 * DAY)}`));
+    tt.appendChild(h('span', 'muted small', `неделя меню ${ntMenuIdx(w) + 1}${w === ntBuyWeek() ? ' · к этой закупке' : ''}`));
+    head.appendChild(prev); head.appendChild(tt); head.appendChild(next);
+    view.appendChild(head);
+    const list = ntBuyList(w);
+    const done = list.filter(x => isMarked(x.key)).length;
+    const top = h('div', 'card');
+    const tr = h('div', 'buy-top');
+    const tx = h('div', 'grow'); tx.appendChild(h('b', null, `Куплено ${done} из ${list.length}`)); tr.appendChild(tx);
+    top.appendChild(tr);
+    const m = h('div', 'meter ' + (done === list.length && list.length ? 'good' : '')); const mi = h('i'); mi.style.width = (list.length ? Math.round(done / list.length * 100) : 0) + '%'; m.appendChild(mi); top.appendChild(m);
+    const tools = h('div', 'buy-tools');
+    const hb = h('button', null, 'Скрыть купленное'); hb.type = 'button'; hb.setAttribute('aria-pressed', String(buyHide));
+    hb.onclick = () => { buyHide = !buyHide; render(); };
+    tools.appendChild(hb);
+    top.appendChild(tools);
+    top.appendChild(h('div', 'muted small', `Количество на двоих, с запасом ${Math.round((NTD().waste || 0) * 100)} % на отходы. Отметки видны на сайте и у всех, кто синхронизирован.`));
+    view.appendChild(top);
+    if (buyHide && done === list.length && list.length) { view.appendChild(h('div', 'buy-done', 'Всё куплено ✓')); return; }
+    for (const st of ntStores(list)) {
+      const its = list.filter(x => x.store === st);
+      const nd = its.filter(x => isMarked(x.key)).length;
+      const shown = buyHide ? its.filter(x => !isMarked(x.key)) : its;
+      if (!shown.length) continue;
+      view.appendChild(h('div', 'sec', `${st} · ${nd}/${its.length}`));
+      const box = h('div', 'list');
+      for (const x of shown) {
+        const on = isMarked(x.key);
+        const row = h('button', 'bi' + (on ? ' on' : '')); row.type = 'button';
+        row.setAttribute('role', 'checkbox'); row.setAttribute('aria-checked', String(on));
+        row.appendChild(h('span', 'bi-box', on ? '✓' : ''));
+        const t = h('div', 'grow'); t.appendChild(h('div', 'bi-name', x.prod)); if (x.hint) t.appendChild(h('div', 'bi-hint', x.hint)); row.appendChild(t);
+        row.appendChild(h('span', 'bi-qty', x.pcs ? `${x.pcs} шт` : gKg(x.buy)));
+        row.onclick = () => { const y = window.scrollY; setMark(x.key, !isMarked(x.key)); render(); window.scrollTo(0, y); };
+        box.appendChild(row);
+      }
+      view.appendChild(box);
+    }
   }
 
   function renderSyncCard() {
