@@ -474,7 +474,7 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
   <section id="empty" class="empty" hidden>
     <div class="empty-card">
       <h2>Загрузите выгрузки</h2>
-      <p>Файлы разбираются прямо в браузере. На сайте после входа через Google разобранные данные синхронизируются через ваш Google Диск; локальный файл работает без интернета и ничего не отправляет. Можно загружать всё сразу, в любом порядке — тип файла определится сам. Исходные выгрузки лежат в папке <b>raw</b>.</p>
+      <p>Файлы разбираются прямо в браузере. На сайте после входа (кнопка «Войти» вверху) разобранные данные синхронизируются между устройствами; локальный файл работает без интернета и ничего не отправляет. Можно загружать всё сразу, в любом порядке — тип файла определится сам. Исходные выгрузки лежат в папке <b>raw</b>.</p>
       <ol>
         <li><b>Garmin</b> (raw\garmin) — полный экспорт аккаунта: garmin.com/account/datamanagement → «Экспорт данных». Ссылка на ZIP придёт на почту через 24–48 часов. Загружайте ZIP целиком, распаковывать не нужно.</li>
         <li><b>Picooc</b> (raw\picooc) — в приложении экспорт истории измерений: файл весов и файл давления.</li>
@@ -720,6 +720,9 @@ const U = {
   },
   dayMs(date) { const [y, m, d] = date.split('-').map(Number); return Date.UTC(y, m - 1, d); },
   msToDate(t) { return new Date(t).toISOString().slice(0, 10); },
+  // Чьи данные в этом браузере: '' — администратор (прежние ключи), ':person' — другой человек после входа
+  who: (() => { try { return JSON.parse(localStorage.getItem('health-sync-v2') || '{}').suffix || ''; } catch (e) { return ''; } })(),
+  lsk(key) { return key + U.who; },
 };
 /*@end:u*/
 
@@ -1549,7 +1552,7 @@ const Charts = (() => {
   ];
   /* ------------------------------------------------------------ план тренировок */
   // Параметров плана в коде нет: они приходят из данных пользователя
-  // (training\plan.json → «Загрузить выгрузки» → трекер → Google Диск).
+  // (training\plan.json → «Загрузить выгрузки» → трекер → облако Firebase).
   const EMPTY_PLAN = { name: '', start: null, end: null, weightFrom: null, weightTo: null, zone2: [0, 0],
     week: { strength: 0, squash: 0, swim: 0, z2: 0 }, weeks: [], schedule: [], finalWeek: [], templates: {} };
   let PLAN = { ...EMPTY_PLAN };
@@ -1647,7 +1650,7 @@ const Charts = (() => {
 
   function load() {
     try {
-      const raw = localStorage.getItem(LS_KEY);
+      const raw = localStorage.getItem(U.lsk(LS_KEY));
       if (!raw) return;
       const obj = JSON.parse(raw);
       if (obj && obj.data) {
@@ -1661,7 +1664,7 @@ const Charts = (() => {
   let dataDirty = false;
   function save() {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data }));
+      localStorage.setItem(U.lsk(LS_KEY), JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data }));
     } catch (e) { console.warn('Не удалось сохранить', e); return false; }
     if (dataDirty) { dataDirty = false; Sync.changed(); }
     return true;
@@ -1693,7 +1696,7 @@ const Charts = (() => {
       const line = statusLine('…', `${f.name}: читаю…`);
       try {
         const res = await Parsers.parseFile(f, (d, t) => { line.textContent = `${f.name}: разбираю Garmin, ${d} из ${t} файлов…`; });
-        const summary = merge(res, f);
+        const summary = await merge(res, f);
         line.textContent = `${f.name} — ${summary}`;
         line.previousSibling.textContent = '✓';
         line.parentNode.classList.add('ok');
@@ -1905,12 +1908,14 @@ const Charts = (() => {
     document.getElementById('asof').textContent = X.asOf != null ? `данные на ${fmtDate(X.asOf)}` : '';
     document.querySelectorAll('.period button').forEach(b => b.setAttribute('aria-checked', String(String(state.period) === b.dataset.p)));
     // Разделы здоровья — при наличии данных Garmin/Picooc/анализов; питание и готовка — при загруженном меню
-    availTabs = X.hasAny ? TABS : (hasNutrition() ? NUTR_TABS : []);
+    // без данных здоровья (например, у второго человека): трекер, питание и аккаунт
+    const lite = [...(hasTracker() ? ['tracker'] : []), ...(hasNutrition() ? NUTR_TABS : [])];
+    availTabs = X.hasAny ? TABS : (lite.length ? [...lite, ...(Sync.enabled ? ['data'] : [])] : []);
     document.querySelector('.topbar .period').hidden = !X.hasAny;   // период — только для разделов здоровья
     document.querySelectorAll('#nav a').forEach(a => { a.hidden = !availTabs.includes(a.getAttribute('href').slice(1)); });
     if (!availTabs.length) { emptyBox.hidden = false; dash.hidden = true; document.getElementById('nav').hidden = true; return; }
     emptyBox.hidden = true; dash.hidden = false; document.getElementById('nav').hidden = false;
-    if (!X.hasAny) { renderNutrition(); renderCooking(); showTab(state.tab); return; }
+    if (!X.hasAny) { if (hasTracker()) renderTracker(X); renderNutrition(); renderCooking(); if (Sync.enabled) renderData(X); showTab(state.tab); return; }
 
     const dP = X.daily.filter(r => X.inP(r.t));
     const bodyP = X.body.filter(r => X.inP(r.t));
@@ -2297,7 +2302,7 @@ const Charts = (() => {
   function renderPlan(X, dP, x0, x1) {
     if (!hasPlan()) {
       const g0 = section('plan', 'План', 'Параметры плана не загружены.');
-      card(g0, 'План не загружен', 'Нажмите «Загрузить выгрузки» и выберите training\\plan.json. План хранится в ваших данных и Google Диске, а не в коде сайта.', (el) => { el.replaceChildren(); }, null, { wide: true });
+      card(g0, 'План не загружен', 'Нажмите «Загрузить выгрузки» и выберите training\\plan.json. План хранится в ваших данных и в облаке, а не в коде сайта.', (el) => { el.replaceChildren(); }, null, { wide: true });
       return;
     }
     const today = X.asOf;
@@ -2628,26 +2633,11 @@ const Charts = (() => {
   }
 
   function renderData(X) {
-    const g = section('data', 'Источники данных', Sync.enabled ? 'Что загружено. Данные хранятся в этом браузере и синхронизируются через ваш Google Диск.' : 'Что загружено. Данные хранятся только в этом браузере на этом компьютере.');
+    const g = section('data', X.hasAny ? 'Источники данных' : 'Аккаунт', Sync.enabled ? 'Данные хранятся в этом браузере и синхронизируются через облако (Firebase). У каждого своя зона: свои данные и трекер видите только вы; меню и отметки закупки — общие.' : 'Что загружено. Данные хранятся только в этом браузере на этом компьютере.');
     if (Sync.enabled) {
-      card(g, 'Синхронизация', 'Google Диск: папка «Health dashboard», файл health-data.json.gz. Приложение видит только файлы, которые создало само.', (el) => {
-        el.replaceChildren();
-        const S = Sync.state;
-        const rows = [
-          ['Вход', S.consented ? 'выполнен на этом устройстве' : 'не выполнен'],
-          ['Последняя синхронизация', S.lastSync ? new Date(S.lastSync).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'],
-          ['Неотправленные изменения', S.pending ? 'есть' : 'нет'],
-        ];
-        Charts.table(el, [{ label: 'Параметр' }, { label: 'Значение' }], rows);
-        const a = h('div', 'data-actions');
-        const b1 = h('button', 'btn primary', S.consented ? 'Синхронизировать сейчас' : 'Войти через Google'); b1.type = 'button';
-        b1.onclick = () => (S.consented ? Sync.syncNow() : Sync.signIn()).then(() => render());
-        a.appendChild(b1);
-        if (S.consented) { const b2 = h('button', 'btn ghost', 'Выйти из Google на этом устройстве'); b2.type = 'button'; b2.onclick = () => { Sync.signOut(); render(); }; a.appendChild(b2); }
-        a.appendChild(h('span', 'muted small', 'Данные на этом устройстве при выходе остаются. Файл в Диске не удаляется.'));
-        el.appendChild(a);
-      }, null, { wide: true });
+      card(g, 'Синхронизация и вход', '', (el) => { el.replaceChildren(Sync.accountBox(() => render())); }, null, { wide: true });
     }
+    if (!X.hasAny) return;
     card(g, 'Загруженные выгрузки', '', (el) => {
       el.replaceChildren();
       const range = (arr) => (arr.length ? `${fmtDate(arr[0].t)} — ${fmtDate(arr.at(-1).t)}` : '—');
@@ -2673,7 +2663,7 @@ const Charts = (() => {
         clearTimeout(timer);
         state.data = blank();
         touchData();
-        try { localStorage.removeItem(LS_KEY); } catch (e) { /* нет доступа к хранилищу */ }
+        try { localStorage.removeItem(U.lsk(LS_KEY)); } catch (e) { /* нет доступа к хранилищу */ }
         Sync.changed();
         render();
       };
@@ -2867,35 +2857,71 @@ const Charts = (() => {
 
   let TR = null;
   function trLoad() {
-    try { const raw = localStorage.getItem(TR_KEY); if (raw) { const o = JSON.parse(raw); if (o && o.sessions) TR = o; } } catch (e) { /* нет хранилища */ }
+    try { const raw = localStorage.getItem(U.lsk(TR_KEY)); if (raw) { const o = JSON.parse(raw); if (o && o.sessions) TR = o; } } catch (e) { /* нет хранилища */ }
     setPlan(TR && TR.plan);
     if (!TR) TR = buildDefaultPlan();
     TR.log = TR.log || {};
     TR.tomb = TR.tomb || {};
   }
-  // Загрузка плана из training\plan.json: план хранится в трекере и синхронизируется через Google Диск
+  // Загрузка плана из training\plan.json: план хранится в трекере и синхронизируется.
+  // Поле "for" (и "forName") — план для другого человека: администратор отправляет его в зону этого человека.
   function importPlan(obj) {
     const p = obj.plan;
     if (!p || !p.start || !Array.isArray(p.weeks) || !p.weeks.length) throw new Error('В файле нет плана (start, weeks)');
+    const forP = obj.for || p.for;
     const now = new Date().toISOString();
-    TR.plan = { ...p, mt: now };
+    if (forP && forP !== (Sync.state.person || forP + '?')) {
+      const name = obj.forName || p.forName || forP;
+      const plan = { ...p, mt: now };
+      return Sync.putPlan(forP, plan).then(() => {
+        TR.team = { ...(TR.team || {}), [forP]: name };
+        trSave();
+        return `план «${p.name || 'без названия'}» отправлен: ${name}, ${p.weeks.length} нед. с ${fmtDate(U.dayMs(p.start))}`;
+      });
+    }
+    const built = applyPlan({ ...p, mt: now });
+    trSave();
+    return `план «${p.name || 'без названия'}»: ${p.weeks.length} нед. с ${fmtDate(U.dayMs(p.start))}${built ? `, создано тренировок: ${built}` : ', тренировки и отметки сохранены'}`;
+  }
+  // Поставить план в трекер; если тренировок ещё нет — создать их по плану. Возвращает число созданных
+  function applyPlan(plan) {
+    TR.plan = plan;
     setPlan(TR.plan);
     let built = 0;
     if (!TR.start || !Object.keys(TR.sessions || {}).length) {
       const fresh = buildDefaultPlan();
-      Object.values(fresh.sessions).forEach(x => { x.mt = now; });
+      Object.values(fresh.sessions).forEach(x => { x.mt = plan.mt; });
       TR.start = fresh.start; TR.weeks = fresh.weeks; TR.sessions = { ...fresh.sessions, ...(TR.sessions || {}) };
+      TR.planBuilt = plan.mt;
       built = Object.keys(fresh.sessions).length;
     }
-    trSave();
-    return `план «${p.name || 'без названия'}»: ${p.weeks.length} нед. с ${fmtDate(U.dayMs(p.start))}${built ? `, создано тренировок: ${built}` : ', тренировки и отметки сохранены'}`;
+    trSave(true);
+    return built;
+  }
+  // Пересобрать тренировки по текущему плану (отметки удаляются)
+  function rebuildFromPlan() {
+    const keepPlan = TR.plan, team = TR.team;
+    TR = buildDefaultPlan(); TR.plan = keepPlan; TR.team = team;
+    TR.resetAt = new Date().toISOString(); TR.planBuilt = keepPlan && keepPlan.mt;
+    Object.values(TR.sessions).forEach(x => { x.mt = TR.resetAt; });
+  }
+  // Новый план пришёл, а тренировки собраны по старому
+  const planOutdated = () => !!(TR.plan && TR.planBuilt && (TR.plan.mt || '') > TR.planBuilt && Object.keys(TR.sessions || {}).length);
+  // Просмотр чужого трекера (администратор, только чтение): на время отрисовки подменяем TR и план
+  let TRV = null;      // { person, name, tr }
+  let noGarmin = false;
+  function trWith(fn) {
+    if (!TRV || !TRV.tr) return fn();
+    const own = TR;
+    TR = TRV.tr; TR.log = TR.log || {}; TR.tomb = TR.tomb || {}; setPlan(TR.plan); noGarmin = true;
+    try { return fn(); } finally { TR = own; setPlan(TR.plan); noGarmin = false; }
   }
   // «Надгробия» удалённых отметок и тренировок — чтобы синхронизация не вернула их из другой копии
   function tomb(key) { (TR.tomb || (TR.tomb = {}))[key] = new Date().toISOString(); }
   function trSave(silent) {
     TR.updatedAt = new Date().toISOString();
     let ok = true;
-    try { localStorage.setItem(TR_KEY, JSON.stringify(TR)); } catch (e) { ok = false; }
+    try { localStorage.setItem(U.lsk(TR_KEY), JSON.stringify(TR)); } catch (e) { ok = false; }
     if (!silent) Sync.changed();
     return ok;
   }
@@ -2912,12 +2938,13 @@ const Charts = (() => {
   // Garmin: тренировки и шаги за день (из загруженных данных дашборда)
   function garminDay(X, date) {
     const acts = X ? X.acts.filter(a => a.date === date) : [];
+    if (noGarmin) return { acts: [], steps: null };
     const d = state.data.garmin.days[date];
     return { acts, steps: d && d.steps != null ? d.steps : null };
   }
   // Сопоставление: каждой сессии дня — первая подходящая по виду тренировка Garmin
   function matchDay(X, date) {
-    const { acts } = garminDay(X, date);
+    const { acts } = garminDay(noGarmin ? null : X, date);
     const used = new Set(), map = {};
     const ss = Object.values(TR.sessions).filter(s => s.date === date);
     for (const s of ss) {
@@ -3133,6 +3160,8 @@ const Charts = (() => {
   // День сквоша: по трекеру тренировок (если дата в его периоде), иначе — по типовой неделе меню
   function ntSquash(t) {
     const date = U.msToDate(t);
+    // на устройстве другого человека — дни сквоша администратора из облака (shared/squash)
+    if (U.who && NT.sq) { if (date >= NT.sq.from && date < NT.sq.to) return NT.sq.dates.includes(date); return (NTD().squashDefault || []).includes(ntDay(t).dow); }
     if (typeof TR !== 'undefined' && TR && TR.start && TR.weeks) {
       const s0 = U.dayMs(TR.start), s1 = s0 + TR.weeks * 7 * DAY;
       if (t >= s0 && t < s1) return Object.values(TR.sessions || {}).some(s => s.date === date && s.kind === 'squash');
@@ -3220,6 +3249,22 @@ const Charts = (() => {
     });
     return { ...b, dishes };
   }
+  // Список закупки на неделю: нетто + запас на отходы, округлено вверх до 10 г; готовые блюда — штуками
+  const STORE_ORDER = ['Metro', 'Metro / Перекрёсток', 'Metro / ВкусВилл', 'Metro / любой', 'Перекрёсток / Metro', 'Перекрёсток', 'Перекрёсток / Лавка', 'ВкусВилл', 'ВкусВилл / Лавка', 'Любой'];
+  function ntBuyList(w) {
+    const N = NTD();
+    const { items, ready } = ntShopping(w);
+    const waste = N.waste || 0;
+    const list = Object.entries(items).filter(([prod]) => prod !== 'Соль').map(([prod, g]) => {
+      const q = N.products[prod] || {};
+      return { prod, g, buy: Math.ceil(g * (1 + waste) / 10) * 10, store: q.store || 'Любой', cat: q.cat || '', hint: q.hint || '', key: markKey('buy', w, prod) };
+    });
+    if (ready) list.push({ prod: 'Готовое блюдо', g: 0, pcs: ready, store: 'ВкусВилл / Лавка', cat: 'Готовые блюда', hint: 'критерии — «Готовые блюда» на сайте', key: markKey('buy', w, 'ГОТ') });
+    return list.sort((a, b) => a.cat.localeCompare(b.cat) || a.prod.localeCompare(b.prod));
+  }
+  const ntStores = (list) => [...new Set(list.map(x => x.store))].sort((a, b) => (STORE_ORDER.indexOf(a) + 1 || 99) - (STORE_ORDER.indexOf(b) + 1 || 99));
+  // Неделя закупки: в субботу — следующая (закупка к воскресной заготовке), иначе текущая
+  const ntBuyWeek = () => { const t = ntToday(); if (t < ntStart()) return 0; const w = ntWeekNo(t); return ntDay(t).dow === 6 ? w + 1 : w; };
   const markKey = (type, w, id) => `${type}|${U.msToDate(ntWeekStart(w))}|${id}`;
   const isMarked = (key) => !!(NT.marks[key] && NT.marks[key].on);
   function setMark(key, on) { NT.marks[key] = { on: !!on, at: new Date().toISOString() }; ntSave(); }
@@ -3266,16 +3311,45 @@ const Charts = (() => {
     return new Set(badges(X, seasonStats(X), vBy).filter(b => b.earned).map(b => b.id));
   };
 
+  // Трекер: свой или (администратор) чужой — только просмотр
   function trDraw() {
+    if (!trHost) return;
+    trHost.replaceChildren();
+    if (TRV && !TRV.tr) {
+      const hd = h('div', 'section-head'); hd.appendChild(h('h2', null, `Трекер: ${TRV.name}`)); trHost.appendChild(hd);
+      const c = h('article', 'card wide');
+      c.appendChild(h('h3', null, TRV.loading ? 'Загружаю…' : TRV.err ? 'Не удалось загрузить' : 'Трекера пока нет'));
+      c.appendChild(h('p', 'card-sub', TRV.err || (TRV.loading ? '' : TRV.plan ? 'План отправлен. Тренировки появятся, когда человек откроет сайт или приложение под своим входом.' : 'План ещё не отправлен: загрузите plan.json с полем "for".')));
+      trHost.appendChild(c);
+    } else trWith(trDrawInner);
+    trSwitcher();
+  }
+  function trSwitcher() {
+    const team = Object.entries(TR.team || {});
+    if (!team.length || !Sync.signedIn() || !Sync.isAdmin()) return;
+    const box = h('div', 'tr-nav tr-who');
+    box.appendChild(h('span', 'muted', 'Трекер:'));
+    box.appendChild(segmented([['', 'Мой'], ...team.map(([p, n]) => [p, `${n} (просмотр)`])], TRV ? TRV.person : '', (p) => {
+      trWeek = null;
+      if (!p) { TRV = null; trDraw(); return; }
+      TRV = { person: p, name: TR.team[p] || p, tr: null, loading: true };
+      trDraw();
+      Sync.readTracker(p).then((r) => {
+        if (!TRV || TRV.person !== p) return;
+        Object.assign(TRV, { tr: r.tr, plan: r.plan, loading: false }); trDraw();
+      }).catch((e) => { if (TRV && TRV.person === p) { Object.assign(TRV, { loading: false, err: e.message }); trDraw(); } });
+    }, 'Чей трекер'));
+    trHost.prepend(box);
+  }
+  function trDrawInner() {
     const sec = trHost;
-    if (!sec) return;
-    const X = trX;
-    sec.replaceChildren();
+    const X = TRV ? null : trX;
+    const RO = !!TRV;
     if (!hasTracker()) {
       const hd = h('div', 'section-head'); hd.appendChild(h('h2', null, 'Трекер тренировок')); sec.appendChild(hd);
       const c = h('article', 'card wide');
-      c.appendChild(h('h3', null, 'План не загружен'));
-      c.appendChild(h('p', 'card-sub', 'Нажмите «Загрузить выгрузки» и выберите training\\plan.json. План сохранится в ваших данных и синхронизируется через Google Диск; в коде сайта его нет.'));
+      c.appendChild(h('h3', null, U.who ? 'План ещё не получен' : 'План не загружен'));
+      c.appendChild(h('p', 'card-sub', U.who ? 'План тренировок отправляет администратор. Он появится здесь после синхронизации.' : 'Нажмите «Загрузить выгрузки» и выберите training\\plan.json. План сохранится в ваших данных и синхронизируется; в коде сайта его нет.'));
       sec.appendChild(c);
       return;
     }
@@ -3287,11 +3361,22 @@ const Charts = (() => {
     const vBy = new Map(vAll.map(q => [iso(q.t), q]));
 
     const head = h('div', 'section-head');
-    head.appendChild(h('h2', null, 'Трекер тренировок'));
+    head.appendChild(h('h2', null, RO ? `Трекер: ${TRV.name}` : 'Трекер тренировок'));
     const before = today < trStart();
     const after = today >= weekStart(TR.weeks);
     head.appendChild(h('p', 'section-note', `План «${planName()}», ${fmtDate(trStart())} — ${fmtDate(weekStart(TR.weeks) - DAY)}. ${before ? `До старта ${Math.round((trStart() - today) / DAY)} дн.` : after ? 'Сезон завершён.' : `Сегодня неделя ${curW + 1} из ${TR.weeks}.`}`));
     sec.appendChild(head);
+    if (RO) sec.appendChild(h('p', 'note', `Только просмотр: отмечать и менять план может только ${TRV.name}. Данные Garmin к этому трекеру не подключены.`));
+    if (!RO && planOutdated()) {
+      const box = h('div', 'tr-summary miss');
+      box.appendChild(h('div', 'tr-summary-title', `Пришёл новый план «${planName()}»`));
+      box.appendChild(h('div', 'tr-summary-sub', 'Тренировки пока собраны по предыдущему плану. Пересобрать — тренировки встанут по новому плану, отметки будут удалены.'));
+      const rb = h('button', 'btn small primary', 'Пересобрать по новому плану'); rb.type = 'button';
+      let armed = false;
+      rb.onclick = () => { if (!armed) { armed = true; rb.textContent = 'Нажмите ещё раз: отметки будут удалены'; rb.classList.add('danger'); return; } rebuildFromPlan(); trWeek = null; afterChange(null); };
+      box.appendChild(rb);
+      sec.appendChild(box);
+    }
     if (!hasPlan()) sec.appendChild(h('p', 'note warn-note', 'Тренировки и отметки на месте, но параметры плана (фазы, нормы шагов, упражнения, цель по весу) не загружены. Загрузите training\\plan.json через «Загрузить выгрузки».'));
 
     // Показатели сезона
@@ -3372,11 +3457,12 @@ const Charts = (() => {
       }
       const add = h('button', 'tr-add', '+ добавить'); add.type = 'button';
       add.onclick = () => openEditor(null, date);
-      col.appendChild(add);
+      if (!RO) col.appendChild(add);
       // перетаскивание
       col.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('text/tr-session')) { e.preventDefault(); col.classList.add('drop'); } });
       col.addEventListener('dragleave', () => col.classList.remove('drop'));
       col.addEventListener('drop', (e) => {
+        if (TRV) return;
         const id = e.dataTransfer.getData('text/tr-session');
         col.classList.remove('drop');
         if (!id) return;
@@ -3443,6 +3529,7 @@ const Charts = (() => {
     ];
     Charts.table(rc.appendChild(h('div')), [{ label: 'Событие' }, { label: 'Очки', num: true }], rules);
     rc.appendChild(h('p', 'note', `Уровень — каждые 100 очков. Серия — недели подряд, где закрыто не меньше ${Math.round(WEEK_OK * 100)} % обязательных тренировок; текущая неделя серию не рвёт, пока не закончилась. Джокер закрывает один пропуск в календарный месяц: неделя засчитывается, очков он не даёт.`));
+    if (RO) { sec.appendChild(rc); return; }
     const act = h('div', 'data-actions');
     const exp = h('button', 'btn', 'Сохранить копию трекера'); exp.type = 'button'; exp.onclick = exportTracker;
     act.appendChild(exp);
@@ -3451,7 +3538,7 @@ const Charts = (() => {
     rs.onclick = () => {
       if (!armed) { armed = true; rs.textContent = 'Нажмите ещё раз: план и все отметки будут удалены'; rs.classList.add('danger'); tm = setTimeout(() => { armed = false; rs.textContent = 'Сбросить план к исходному'; rs.classList.remove('danger'); }, 4000); return; }
       if (!hasPlan()) return;
-      clearTimeout(tm); const keepPlan = TR.plan; TR = buildDefaultPlan(); TR.plan = keepPlan; TR.resetAt = new Date().toISOString(); Object.values(TR.sessions).forEach(x => { x.mt = TR.resetAt; }); trWeek = null; afterChange(null);
+      clearTimeout(tm); rebuildFromPlan(); trWeek = null; afterChange(null);
     };
     act.appendChild(rs);
     act.appendChild(h('span', 'muted small', 'Отметки хранятся в этом браузере. Копию кладите в training\\tracker — загружается обратно через «Загрузить выгрузки».'));
@@ -3473,7 +3560,7 @@ const Charts = (() => {
     const c = h('button', 'tr-sess');
     c.type = 'button';
     c.style.setProperty('--c', (KIND[s.kind] || KIND.other).color);
-    c.draggable = true;
+    c.draggable = !TRV;
     c.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/tr-session', s.id); e.dataTransfer.effectAllowed = 'move'; });
     c.onclick = () => openEditor(s.id);
     const top = h('div', 'tr-sess-top');
@@ -3494,7 +3581,29 @@ const Charts = (() => {
 
   /* ------------------------------------------------------------ диалог сессии */
   let dlg = null;
-  function openEditor(id, dateForNew) {
+  function openEditor(id, dateForNew) { return trWith(() => (TRV ? openViewer(id) : openEditorInner(id, dateForNew))); }
+  // Просмотр тренировки чужого трекера: отметка, заметка, задание — без правки
+  function openViewer(id) {
+    if (!dlg) { dlg = document.createElement('dialog'); dlg.className = 'tr-dialog'; document.body.appendChild(dlg); dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); }
+    dlg.replaceChildren();
+    const s = TR.sessions[id]; if (!s) return;
+    const l = TR.log[id];
+    const t = U.dayMs(s.date);
+    const form = h('form'); form.method = 'dialog';
+    const hd = h('div', 'tr-dlg-head');
+    hd.appendChild(h('h3', null, s.title));
+    hd.appendChild(h('div', 'muted small', `${WD_FULL[(t / DAY + 3) % 7]}, ${fmtDate(t)} · неделя ${weekOf(s.date) + 1} · ${TRV.name}, только просмотр`));
+    form.appendChild(hd);
+    form.appendChild(h('p', 'tr-dlg-detail', [s.time, s.dur ? `${s.dur} мин` : '', s.optional ? 'по желанию' : ''].filter(Boolean).join(' · ')));
+    if (s.detail) form.appendChild(h('p', 'tr-dlg-detail', s.detail));
+    form.appendChild(h('p', null, `Отметка: ${l ? (l.joker ? 'джокер' : ST[l.st].label) + (l.at ? `, ${fmtDate(Date.parse(l.at), true)}` : '') : 'нет'}`));
+    if (l && l.note) form.appendChild(h('p', 'tr-note', l.note));
+    const cl = h('button', 'btn small', 'Закрыть'); cl.type = 'button'; cl.onclick = () => dlg.close();
+    form.appendChild(cl);
+    dlg.appendChild(form);
+    dlg.showModal();
+  }
+  function openEditorInner(id, dateForNew) {
     if (!dlg) { dlg = document.createElement('dialog'); dlg.className = 'tr-dialog'; document.body.appendChild(dlg); dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); }
     dlg.replaceChildren();
     const isNew = !id;
@@ -3852,16 +3961,10 @@ const Charts = (() => {
     ({ buy: ckBuy, batch: ckBatch, recipes: ckRecipes, ready: ckReady }[ckPanel] || ckBuy)(body);
   }
 
-  const STORE_ORDER = ['Metro', 'Metro / Перекрёсток', 'Metro / ВкусВилл', 'Metro / любой', 'Перекрёсток / Metro', 'Перекрёсток', 'Перекрёсток / Лавка', 'ВкусВилл', 'ВкусВилл / Лавка', 'Любой'];
   function ckBuy(body) {
     const N = NTD();
-    const { items, ready } = ntShopping(ntW);
     const waste = N.waste || 0;
-    const list = Object.entries(items).filter(([prod]) => prod !== 'Соль').map(([prod, g]) => {
-      const q = N.products[prod] || {};
-      return { prod, g, buy: Math.ceil(g * (1 + waste) / 10) * 10, store: q.store || 'Любой', cat: q.cat || '', hint: q.hint || '', key: markKey('buy', ntW, prod) };
-    });
-    if (ready) list.push({ prod: 'Готовое блюдо', g: 0, pcs: ready, store: 'ВкусВилл / Лавка', cat: 'Готовые блюда', hint: 'критерии — «Готовые блюда»', key: markKey('buy', ntW, 'ГОТ') });
+    const list = ntBuyList(ntW);
     const done = list.filter(x => isMarked(x.key)).length;
     const top = h('div', 'ck-top');
     top.appendChild(h('div', 'ck-count', `Куплено ${done} из ${list.length}`));
@@ -3874,7 +3977,7 @@ const Charts = (() => {
     top.appendChild(copy);
     body.appendChild(top);
     body.appendChild(h('p', 'note', `Купить = нетто по меню на неделю ${fmtDate(ntWeekStart(ntW)).slice(0, 5)}–${fmtDate(ntWeekStart(ntW) + 6 * DAY).slice(0, 5)} + ${Math.round(waste * 100)} % на отходы, округлено вверх. Закупка — в субботу или в воскресенье до заготовки.`));
-    const stores = [...new Set(list.map(x => x.store))].sort((a, b) => (STORE_ORDER.indexOf(a) + 1 || 99) - (STORE_ORDER.indexOf(b) + 1 || 99));
+    const stores = ntStores(list);
     const grid = h('div', 'ck-stores');
     for (const st of stores) {
       const c = h('article', 'card ck-store');
@@ -3993,225 +4096,271 @@ const Charts = (() => {
 
 /*@core:sync*/
   /* ============================================================================
-     sync — синхронизация через Google Диск. Работает только на сайте (https);
-     локальный файл (file://) живёт как раньше, только с данными в браузере.
-     Файл: «Health dashboard/health-data.json.gz» в Google Диске пользователя.
-     Доступ drive.file: приложение видит только файлы, созданные им самим.
+     sync — синхронизация через Firebase (вход по почте и паролю + Cloud Firestore).
+     Работает только на сайте (https); локальный файл (file://) живёт как раньше,
+     только с данными в браузере. Библиотек нет: REST API Google.
+     Зоны (права проверяет сервер, правила — src\firestore.rules):
+       people/{uid}               — кто это: person (viktor | yulia), role (admin | member)
+       zones/{p}/data/meta, c0…   — Garmin/Picooc/анализы человека p (gzip кусками)
+       zones/{p}/tracker/state    — трекер человека p (пишет только он; администратор читает)
+       zones/{p}/tracker/plan     — план для человека p (пишет администратор)
+       shared/menu                — меню (пишет администратор), shared/marks — отметки питания (оба)
+       shared/squash              — дни сквоша администратора (для добавки в меню на чужих устройствах)
+     Конфиг Firebase — не секрет: доступ ограничивают правила по UID.
      ========================================================================== */
   const Sync = (() => {
-    const CLIENT_ID = '637285603446-16ge7m2ut7mlshalu1ctnhkhl7pdh0b2.apps.googleusercontent.com';
-    const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-    const FOLDER = 'Health dashboard';
-    const FILE = 'health-data.json.gz';
-    // Питание — отдельный файл в отдельной папке: ею можно поделиться, не открывая данные о здоровье
-    const FOLDER_N = 'Health dashboard — питание';
-    const FILE_N = 'nutrition-data.json.gz';
-    const LS_SYNC = 'health-sync-v1';
-    const API = 'https://www.googleapis.com/drive/v3';
-    const UP = 'https://www.googleapis.com/upload/drive/v3';
+    const FB = { apiKey: 'AIzaSyAqUm2eLSeVTCQJeGZwkoqlPZi1UbQKSWI', projectId: 'health-kirikoff' };
+    const LS_SYNC = 'health-sync-v2';
+    const LS_EMU = 'health-fb-emulator';   // только для проверки на эмуляторе Firebase
+    let EMU = null;
+    try { EMU = JSON.parse(localStorage.getItem(LS_EMU) || 'null'); } catch (e) { /* нет */ }
+    const AUTH = (EMU ? EMU.auth + '/' : 'https://') + 'identitytoolkit.googleapis.com/v1';
+    const TOKEN = (EMU ? EMU.auth + '/' : 'https://') + 'securetoken.googleapis.com/v1/token';
+    const DB = `projects/${FB.projectId}/databases/(default)/documents`;
+    const FS = (EMU ? EMU.fs : 'https://firestore.googleapis.com') + '/v1/' + DB;
+    const CHUNK = 900 * 1024;   // документ Firestore — до 1 МиБ
     const enabled = location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
-    const st = { token: null, exp: 0, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, pendingN: false, lastSync: null, consented: false, status: 'off', msg: '', busy: false, pending: false };
-    try { Object.assign(st, JSON.parse(localStorage.getItem(LS_SYNC) || '{}'), { busy: false, status: 'off', msg: '' }); } catch (e) { /* нет хранилища */ }
-    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ token: st.token, exp: st.exp, fileId: st.fileId, folderId: st.folderId, version: st.version, fileIdN: st.fileIdN, folderIdN: st.folderIdN, versionN: st.versionN, pendingN: st.pendingN, lastSync: st.lastSync, consented: st.consented, pending: st.pending })); } catch (e) { /* нет хранилища */ } };
+    const st = { email: '', uid: '', person: '', role: '', refresh: '', idToken: '', exp: 0, suffix: '', lastSync: null, pending: false, pendingN: false,
+      ver: {}, status: 'off', msg: '', busy: false, panel: false };
+    try { Object.assign(st, JSON.parse(localStorage.getItem(LS_SYNC) || '{}'), { busy: false, status: 'off', msg: '', panel: false }); } catch (e) { /* нет хранилища */ }
+    const persist = () => { try { localStorage.setItem(LS_SYNC, JSON.stringify({ email: st.email, uid: st.uid, person: st.person, role: st.role, refresh: st.refresh, idToken: st.idToken, exp: st.exp, suffix: st.suffix, lastSync: st.lastSync, pending: st.pending, pendingN: st.pendingN, ver: st.ver })); } catch (e) { /* нет хранилища */ } };
+    const signedIn = () => !!st.refresh && !!st.person;
+    const isAdmin = () => signedIn() && st.role === 'admin';
+    let timer = null;
 
-    let tokenClient = null, gisReady = null, timer = null;
-    const hasToken = () => st.token && Date.now() < st.exp - 60000;
+    /* ---------------- оформление (одно на дашборд и приложение) */
+    function css() {
+      if (document.getElementById('sync-css')) return;
+      const s = document.createElement('style'); s.id = 'sync-css';
+      s.textContent = `.sync-panel{margin:8px auto 4px;max-width:420px;padding:14px 16px;border:1px solid var(--border,#ccc);border-radius:12px;background:var(--surface,#fff);color:var(--ink,#111);display:grid;gap:10px}
+.sync-panel h3{margin:0;font-size:15px}.sync-panel label{display:grid;gap:4px;font-size:13px;color:var(--muted,#666)}
+.sync-panel input{font:inherit;font-size:15px;padding:8px 10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--ink,#111)}
+.sync-panel .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sync-panel .msg{font-size:13px;min-height:1em}
+.sync-panel .msg.err{color:var(--bad-text,#b3261e)}.sync-panel .msg.ok{color:var(--good-text,#1e7a3c)}
+.sync-panel button{font:inherit;font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--surface,#fff);color:var(--ink,#111);cursor:pointer}
+.sync-panel button.primary{background:var(--s1,#2a6fdb);border-color:var(--s1,#2a6fdb);color:#fff}
+.sync-panel button.link{border:0;background:none;padding:4px 0;text-decoration:underline;color:var(--muted,#666)}`;
+      document.head.appendChild(s);
+    }
 
     /* ---------------- UI: значок в верхней панели */
-    let chip = null;
+    let chip = null, panelEl = null;
     function ui() {
       if (!enabled) return;
+      css();
       if (!chip) {
         chip = document.createElement('button');
         chip.type = 'button'; chip.className = 'btn sync-chip';
-        chip.onclick = () => (hasToken() ? syncNow() : signIn());
+        chip.onclick = () => (signedIn() ? syncNow() : togglePanel());
         const host = document.querySelector('[data-sync-host]') || document.querySelector('.topbar .actions');
         host.insertBefore(chip, host.firstChild);
       }
       const t = st.lastSync ? new Date(st.lastSync).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
       const d = st.lastSync ? new Date(st.lastSync).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) : '';
       const today = st.lastSync && new Date(st.lastSync).toDateString() === new Date().toDateString();
+      const pend = st.pending || st.pendingN;
       let text, tone;
       if (st.busy) { text = 'Синхронизация…'; tone = 'busy'; }
       else if (st.status === 'error') { text = st.msg || 'Ошибка синхронизации'; tone = 'err'; }
-      else if (st.status === 'offline') { text = st.pending ? 'Нет сети — изменения ждут' : 'Нет сети'; tone = 'warn'; }
-      else if (!hasToken()) { const pend = st.pending || st.pendingN; text = st.consented ? (pend ? 'Нажмите, чтобы отправить' : 'Нажмите для синхронизации') : 'Войти через Google'; tone = pend ? 'warn' : 'idle'; }
-      else if (st.pending || st.pendingN) { text = 'Изменения ждут отправки'; tone = 'warn'; }
-      else { text = st.lastSync ? `Синхронизировано ${today ? t : d + ' ' + t}` : 'Google Диск подключён'; tone = 'ok'; }
+      else if (st.status === 'offline') { text = pend ? 'Нет сети — изменения ждут' : 'Нет сети'; tone = 'warn'; }
+      else if (!signedIn()) { text = 'Войти'; tone = pend ? 'warn' : 'idle'; }
+      else if (pend) { text = 'Изменения ждут отправки'; tone = 'warn'; }
+      else { text = st.lastSync ? `Синхронизировано ${today ? t : d + ' ' + t}` : 'Вход выполнен'; tone = 'ok'; }
       const compact = chip.parentNode && chip.parentNode.hasAttribute('data-compact');
-      if (compact) text = { busy: '…', err: 'Ошибка', warn: st.status === 'offline' ? 'Нет сети' : 'Отправка', ok: t || 'OK', idle: st.consented ? 'Синхр.' : 'Войти' }[tone] || text;
+      if (compact) text = { busy: '…', err: 'Ошибка', warn: st.status === 'offline' ? 'Нет сети' : 'Отправка', ok: t || 'OK', idle: 'Войти' }[tone] || text;
       chip.textContent = text;
       chip.dataset.tone = tone;
-      chip.title = 'Синхронизация с Google Диском: «Health dashboard/health-data.json.gz» и «Health dashboard — питание/nutrition-data.json.gz». Нажмите, чтобы синхронизировать сейчас.';
+      chip.title = signedIn() ? `Вход: ${st.email}. Нажмите, чтобы синхронизировать сейчас.` : 'Войти по почте и паролю, чтобы синхронизировать данные между устройствами.';
+    }
+    // Форма входа — встроенная панель под шапкой (без всплывающих окон)
+    function togglePanel(force) {
+      st.panel = force != null ? force : !st.panel;
+      if (panelEl) { panelEl.remove(); panelEl = null; }
+      if (!st.panel || signedIn()) return;
+      panelEl = loginForm(() => togglePanel(false));
+      const anchor = chip && (chip.closest('header') || chip.parentNode);
+      anchor.parentNode.insertBefore(panelEl, anchor.nextSibling);
+      const em = panelEl.querySelector('input'); if (em) em.focus();
+    }
+    function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function field(label, type, value, auto) {
+      const l = el('label'); l.appendChild(el('span', null, label));
+      const i = el('input'); i.type = type; i.value = value || ''; i.autocomplete = auto; i.required = true;
+      l.appendChild(i); return [l, i];
+    }
+    function loginForm(onClose) {
+      css();
+      const f = el('form', 'sync-panel'); f.noValidate = true;
+      f.appendChild(el('h3', null, 'Вход'));
+      const [l1, em] = field('Почта', 'email', st.email, 'username');
+      const [l2, pw] = field('Пароль', 'password', '', 'current-password');
+      f.appendChild(l1); f.appendChild(l2);
+      const msg = el('div', 'msg');
+      const row = el('div', 'row');
+      const go = el('button', 'primary', 'Войти'); go.type = 'submit';
+      const fg = el('button', 'link', 'Забыли пароль?'); fg.type = 'button';
+      row.appendChild(go); row.appendChild(fg);
+      if (onClose) { const cl = el('button', null, 'Закрыть'); cl.type = 'button'; cl.onclick = onClose; row.appendChild(cl); }
+      f.appendChild(row); f.appendChild(msg);
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        msg.className = 'msg'; msg.textContent = 'Вход…'; go.disabled = true;
+        try { await signIn(em.value.trim(), pw.value); msg.textContent = ''; }
+        catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+        finally { go.disabled = false; }
+      };
+      fg.onclick = async () => {
+        if (!em.value.trim()) { msg.className = 'msg err'; msg.textContent = 'Впишите почту — пришлём ссылку для нового пароля'; return; }
+        try { await resetPassword(em.value.trim()); msg.className = 'msg ok'; msg.textContent = 'Письмо со ссылкой отправлено (проверьте «Спам»)'; }
+        catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+      };
+      return f;
+    }
+    // Блок «Аккаунт» для раздела данных (дашборд) и «Прогресса» (приложение)
+    function accountBox(onChange) {
+      css();
+      if (!signedIn()) return loginForm(null);
+      const box = el('div', 'sync-panel');
+      box.appendChild(el('h3', null, `Вход: ${st.email}`));
+      const last = st.lastSync ? new Date(st.lastSync).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+      box.appendChild(el('div', 'msg', `Последняя синхронизация: ${last}. Неотправленные изменения: ${st.pending || st.pendingN ? 'есть' : 'нет'}.`));
+      const row = el('div', 'row');
+      const b1 = el('button', 'primary', 'Синхронизировать сейчас'); b1.type = 'button';
+      b1.onclick = () => syncNow().then(() => onChange && onChange());
+      const b2 = el('button', null, 'Сменить пароль'); b2.type = 'button';
+      const b3 = el('button', null, 'Выйти на этом устройстве'); b3.type = 'button';
+      b3.onclick = () => { signOut(); onChange && onChange(); };
+      row.appendChild(b1); row.appendChild(b2); row.appendChild(b3);
+      box.appendChild(row);
+      const msg = el('div', 'msg');
+      b2.onclick = () => {
+        if (box.querySelector('.pw-new')) return;
+        const [l, inp] = field('Новый пароль (не короче 8 символов)', 'password', '', 'new-password'); l.classList.add('pw-new');
+        const ok = el('button', 'primary', 'Сохранить пароль'); ok.type = 'button';
+        ok.onclick = async () => {
+          if (inp.value.length < 8) { msg.className = 'msg err'; msg.textContent = 'Пароль короче 8 символов'; return; }
+          try { await changePassword(inp.value); msg.className = 'msg ok'; msg.textContent = 'Пароль изменён'; l.remove(); ok.remove(); }
+          catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+        };
+        box.insertBefore(l, msg); box.insertBefore(ok, msg);
+      };
+      box.appendChild(msg);
+      box.appendChild(el('div', 'msg', 'Данные на этом устройстве при выходе остаются. В облаке у каждого своя зона: свои данные и трекер видите только вы; меню и отметки закупки — общие.'));
+      return box;
     }
 
-    /* ---------------- вход Google (Google Identity Services, всплывающее окно) */
-    function loadGis() {
-      if (gisReady) return gisReady;
-      gisReady = new Promise((res, rej) => {
-        if (window.google && google.accounts && google.accounts.oauth2) return res();
-        const sc = document.createElement('script');
-        sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
-        sc.onload = () => res(); sc.onerror = () => { gisReady = null; rej(new Error('Не загрузился вход Google — проверьте интернет')); };
-        document.head.appendChild(sc);
-      });
-      return gisReady;
-    }
-    function requestToken(prompt) {
-      return new Promise((res, rej) => {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: CLIENT_ID, scope: SCOPE,
-          callback: (r) => {
-            if (r.error) return rej(new Error(r.error === 'access_denied' ? 'Доступ к Диску не выдан' : 'Вход не выполнен: ' + r.error));
-            st.token = r.access_token; st.exp = Date.now() + (r.expires_in || 3600) * 1000; st.consented = true; persist(); res();
-          },
-          error_callback: (e) => rej(new Error(e && e.type === 'popup_closed' ? 'Окно входа закрыто' : e && e.type === 'popup_failed_to_open' ? 'Браузер заблокировал окно входа' : 'Вход не выполнен')),
-        });
-        tokenClient.requestAccessToken({ prompt });
-      });
-    }
-    async function signIn() {
+    /* ---------------- вход (Firebase Authentication, REST) */
+    const AUTH_ERR = {
+      INVALID_LOGIN_CREDENTIALS: 'Неверная почта или пароль', INVALID_PASSWORD: 'Неверная почта или пароль', EMAIL_NOT_FOUND: 'Неверная почта или пароль',
+      INVALID_EMAIL: 'Почта записана с ошибкой', USER_DISABLED: 'Аккаунт отключён', TOO_MANY_ATTEMPTS_TRY_LATER: 'Слишком много попыток — подождите несколько минут',
+      WEAK_PASSWORD: 'Слишком простой пароль', CREDENTIAL_TOO_OLD_LOGIN_AGAIN: 'Для смены пароля выйдите и войдите заново',
+      TOKEN_EXPIRED: 'Сессия истекла — войдите заново', INVALID_REFRESH_TOKEN: 'Сессия истекла — войдите заново', USER_NOT_FOUND: 'Аккаунт удалён',
+    };
+    async function authCall(url, body, form) {
+      let r;
       try {
-        st.busy = true; ui();
-        await loadGis();
-        await requestToken(st.consented ? '' : 'consent');
-        st.status = 'ok'; st.busy = false;
-        await syncNow();
-      } catch (e) { st.busy = false; st.status = 'error'; st.msg = e.message; ui(); }
+        r = await fetch(url, form
+          ? { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body) }
+          : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } catch (e) { const x = new Error('Нет связи с сервером входа'); x.offline = true; throw x; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const code = String((j.error && j.error.message) || r.status).split(/[ :]/)[0];
+        const x = new Error(AUTH_ERR[code] || `Вход: ${code}`); x.code = code; x.auth = true; throw x;
+      }
+      return j;
+    }
+    async function signIn(email, password) {
+      if (!email || !password) throw new Error('Впишите почту и пароль');
+      const j = await authCall(`${AUTH}/accounts:signInWithPassword?key=${FB.apiKey}`, { email, password, returnSecureToken: true });
+      Object.assign(st, { email: j.email || email, uid: j.localId, idToken: j.idToken, refresh: j.refreshToken, exp: Date.now() + (+j.expiresIn || 3600) * 1000 });
+      // кто это и какие права — запись people/{uid}, её заводит администратор в консоли Firebase
+      const p = await getDoc(`people/${st.uid}`).catch((e) => { if (e.code === 403) return null; throw e; });
+      const f = p && p.fields;
+      if (!f || !f.person) { Object.assign(st, { refresh: '', idToken: '', person: '', role: '' }); persist(); throw new Error('Аккаунт не настроен: нет записи people для этого пользователя'); }
+      const person = f.person.stringValue, role = (f.role && f.role.stringValue) || 'member';
+      // данные в браузере у каждого человека свои; у администратора — прежние ключи без суффикса
+      const suffix = role === 'admin' ? '' : ':' + person;
+      const reload = suffix !== (U.who || '');
+      Object.assign(st, { person, role, suffix, status: 'ok', panel: false, ver: reload ? {} : st.ver, lastSync: reload ? null : st.lastSync, pending: reload ? false : st.pending });
+      persist();
+      if (reload) { location.reload(); return; }
+      togglePanel(false);
+      await syncNow();
+      render();
     }
     function signOut() {
-      if (st.token && window.google && google.accounts) try { google.accounts.oauth2.revoke(st.token, () => {}); } catch (e) { /* нет */ }
-      Object.assign(st, { token: null, exp: 0, consented: false, fileId: null, folderId: null, version: null, fileIdN: null, folderIdN: null, versionN: null, status: 'off' });
+      Object.assign(st, { refresh: '', idToken: '', exp: 0, uid: '', person: '', role: '', ver: {}, status: 'off', panel: false });
       persist(); ui();
     }
+    async function resetPassword(email) {
+      await authCall(`${AUTH}/accounts:sendOobCode?key=${FB.apiKey}`, { requestType: 'PASSWORD_RESET', email });
+    }
+    async function changePassword(password) {
+      const tok = await token();
+      const j = await authCall(`${AUTH}/accounts:update?key=${FB.apiKey}`, { idToken: tok, password, returnSecureToken: true });
+      Object.assign(st, { idToken: j.idToken, refresh: j.refreshToken || st.refresh, exp: Date.now() + (+j.expiresIn || 3600) * 1000 });
+      persist();
+    }
+    async function token() {
+      if (st.idToken && Date.now() < st.exp - 60000) return st.idToken;
+      if (!st.refresh) { const e = new Error('Нужно войти'); e.code = 401; throw e; }
+      try {
+        const j = await authCall(`${TOKEN}?key=${FB.apiKey}`, { grant_type: 'refresh_token', refresh_token: st.refresh }, true);
+        Object.assign(st, { idToken: j.id_token, refresh: j.refresh_token || st.refresh, exp: Date.now() + (+j.expires_in || 3600) * 1000 });
+        persist();
+        return st.idToken;
+      } catch (e) {
+        if (e.auth) { signOut(); const x = new Error(e.message); x.code = 401; throw x; }
+        throw e;
+      }
+    }
 
-    /* ---------------- Drive API */
-    async function api(url, opts = {}) {
-      if (!hasToken()) { const e = new Error('Нужно войти заново'); e.code = 401; throw e; }
+    /* ---------------- Firestore REST */
+    async function fs(url, opts = {}) {
+      const tok = await token();
       let r;
-      try { r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + st.token, ...(opts.headers || {}) } }); }
-      catch (e) { const x = new Error('Нет связи с Google'); x.offline = true; throw x; }
-      if (r.status === 401) { st.token = null; persist(); const e = new Error('Сессия Google истекла — нажмите, чтобы войти'); e.code = 401; throw e; }
-      if (r.status === 404) { const e = new Error('not found'); e.code = 404; throw e; }
-      if (!r.ok) { let m = ''; try { m = (await r.json()).error.message; } catch (e) { /* нет тела */ } throw new Error(`Google Диск: ${r.status} ${m}`.trim()); }
-      return r;
+      try { r = await fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', ...(opts.headers || {}) } }); }
+      catch (e) { const x = new Error('Нет связи с сервером'); x.offline = true; throw x; }
+      if (r.ok) return r.json();
+      let j = {}; try { j = await r.json(); } catch (e) { /* нет тела */ }
+      const status = (j.error && j.error.status) || '';
+      const x = new Error(r.status === 403 ? 'Нет доступа к данным (правила)' : `Сервер: ${r.status} ${(j.error && j.error.message) || ''}`.trim());
+      x.code = r.status; x.status = status;
+      x.conflict = status === 'FAILED_PRECONDITION' || status === 'ALREADY_EXISTS' || status === 'ABORTED' || r.status === 409;
+      if (r.status === 401) { st.idToken = ''; st.exp = 0; }
+      throw x;
     }
-    const q = (s) => encodeURIComponent(s);
-    async function ensureFile() {
-      if (st.fileId) {
-        try { const r = await api(`${API}/files/${st.fileId}?fields=id,version,trashed`); const m = await r.json(); if (!m.trashed) return m; }
-        catch (e) { if (e.code !== 404) throw e; }
-        st.fileId = null; st.version = null;
-      }
-      // поиск среди файлов приложения
-      const r = await api(`${API}/files?q=${q(`name='${FILE}' and trashed=false`)}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc&spaces=drive`);
-      const f = (await r.json()).files || [];
-      if (f.length) { st.fileId = f[0].id; persist(); return f[0]; }
-      return null;
+    async function getDoc(path) {
+      try { return await fs(`${FS}/${path}`); }
+      catch (e) { if (e.code === 404) return null; throw e; }
     }
-    async function ensureFolder() {
-      if (st.folderId) return st.folderId;
-      const r = await api(`${API}/files?q=${q(`name='${FOLDER}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
-      const f = (await r.json()).files || [];
-      if (f.length) st.folderId = f[0].id;
-      else {
-        const c = await api(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER, mimeType: 'application/vnd.google-apps.folder' }) });
-        st.folderId = (await c.json()).id;
-      }
-      persist();
-      return st.folderId;
+    // Запись пачкой; pre — условие на документ: updateTime (не менялся с чтения) или exists:false
+    async function commit(writes) {
+      return fs(`${FS}:commit`, { method: 'POST', body: JSON.stringify({ writes }) });
     }
-    // Файл питания: поиск по имени среди файлов, доступных приложению
-    async function ensureFileN() {
-      if (st.fileIdN) {
-        try { const r = await api(`${API}/files/${st.fileIdN}?fields=id,version,trashed`); const m = await r.json(); if (!m.trashed) return m; }
-        catch (e) { if (e.code !== 404) throw e; }
-        st.fileIdN = null; st.versionN = null;
-      }
-      const r = await api(`${API}/files?q=${q(`name='${FILE_N}' and trashed=false`)}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc&spaces=drive`);
-      const f = (await r.json()).files || [];
-      if (f.length) { st.fileIdN = f[0].id; persist(); return f[0]; }
-      return null;
-    }
-    async function ensureFolderN() {
-      if (st.folderIdN) return st.folderIdN;
-      const r = await api(`${API}/files?q=${q(`name='${FOLDER_N}' and mimeType='application/vnd.google-apps.folder' and trashed=false`)}&fields=files(id)&spaces=drive`);
-      const f = (await r.json()).files || [];
-      if (f.length) st.folderIdN = f[0].id;
-      else {
-        const c = await api(`${API}/files?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: FOLDER_N, mimeType: 'application/vnd.google-apps.folder' }) });
-        st.folderIdN = (await c.json()).id;
-      }
-      persist();
-      return st.folderIdN;
-    }
-    async function uploadN(doc) {
-      const body = await gz(doc);
-      if (st.fileIdN) {
-        const r = await api(`${UP}/files/${st.fileIdN}?uploadType=media&fields=id,version`, { method: 'PATCH', headers: { 'Content-Type': 'application/gzip' }, body });
-        return r.json();
-      }
-      const parent = await ensureFolderN();
-      const bd = 'hn' + Math.random().toString(36).slice(2);
-      const meta = { name: FILE_N, mimeType: 'application/gzip', parents: [parent], description: 'Меню, рецепты, отметки закупки и готовки (дашборд здоровья, вкладки «Питание» и «Готовка»)' };
-      const mp = new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bd}\r\nContent-Type: application/gzip\r\n\r\n`, body, `\r\n--${bd}--`]);
-      const r = await api(`${UP}/files?uploadType=multipart&fields=id,version`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${bd}` }, body: mp });
-      const m = await r.json();
-      st.fileIdN = m.id; persist();
-      return m;
-    }
-    const sameNutrition = (a, b) => !!a && !!b && canonN(a) === canonN(b);
-    const canonN = (x) => canon({ mt: (x.data || {}).mt || '', m: x.marks || {} });
-    // Синхронизация питания: скачать → слить (меню по времени загрузки, отметки по записям) → при необходимости отправить
-    async function syncNutrition() {
-      const meta = await ensureFileN();
-      let changed = false;
-      if (meta && meta.version !== st.versionN) {
-        const remote = await download(meta.id);
-        const rn = remote && remote.nutrition;
-        const merged = mergeNutrition(NT, rn);
-        if (merged && !sameNutrition(merged, NT)) { NT = merged; NT.marks = NT.marks || {}; ntSave(true); changed = true; }
-        st.versionN = meta.version;
-        if (st.pendingN || !sameNutrition(NT, rn || {})) await pushN();
-      } else if ((!meta && NT.data) || (meta && st.pendingN)) {
-        await pushN();
-      }
-      st.pendingN = false; persist();
-      return changed;
-    }
-    async function pushN() {
-      if (!NT.data) return;
-      const m = await uploadN({ app: 'health-nutrition-sync', v: 1, savedAt: new Date().toISOString(), nutrition: NT });
-      st.versionN = m.version; st.pendingN = false; persist();
-    }
+    const docName = (path) => `${DB}/${path}`;
+    const pre = (doc) => (doc ? { updateTime: doc.updateTime } : { exists: false });
 
-    async function gz(obj) {
+    /* ---------------- упаковка: JSON → gzip → base64 (bytesValue) */
+    async function gzBytes(obj) {
       const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'));
-      return new Blob([await new Response(s).arrayBuffer()], { type: 'application/gzip' });
+      return new Uint8Array(await new Response(s).arrayBuffer());
     }
-    async function ungz(buf) {
-      const b = new Uint8Array(buf);
-      if (b[0] !== 0x1f || b[1] !== 0x8b) return JSON.parse(new TextDecoder().decode(b));
-      const s = new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'));
+    async function ungz(bytes) {
+      if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return JSON.parse(new TextDecoder().decode(bytes));
+      const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(s).text());
     }
-    async function download(id) { const r = await api(`${API}/files/${id}?alt=media`); return ungz(await r.arrayBuffer()); }
-    async function upload(doc) {
-      const body = await gz(doc);
-      if (st.fileId) {
-        const r = await api(`${UP}/files/${st.fileId}?uploadType=media&fields=id,version`, { method: 'PATCH', headers: { 'Content-Type': 'application/gzip' }, body });
-        return r.json();
-      }
-      const parent = await ensureFolder();
-      const bd = 'hb' + Math.random().toString(36).slice(2);
-      const meta = { name: FILE, mimeType: 'application/gzip', parents: [parent], description: 'Данные дашборда здоровья: Garmin, Picooc, анализы, трекер тренировок' };
-      const mp = new Blob([`--${bd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${bd}\r\nContent-Type: application/gzip\r\n\r\n`, body, `\r\n--${bd}--`]);
-      const r = await api(`${UP}/files?uploadType=multipart&fields=id,version`, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${bd}` }, body: mp });
-      const m = await r.json();
-      st.fileId = m.id; persist();
-      return m;
+    function b64(bytes) {
+      let s = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      return btoa(s);
     }
+    function unb64(str) { const s = atob(str); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; }
+    async function pack(obj) { return { z: { bytesValue: b64(await gzBytes(obj)) }, at: { stringValue: new Date().toISOString() }, by: { stringValue: st.person } }; }
+    async function unpack(doc) { return doc && doc.fields && doc.fields.z ? ungz(unb64(doc.fields.z.bytesValue)) : null; }
 
     /* ---------------- слияние */
     const newer = (a, b) => ((a || '') >= (b || '') ? a : b);
@@ -4240,7 +4389,9 @@ const Charts = (() => {
       }
       const plan = !a.plan ? b.plan : !b.plan ? a.plan : ((a.plan.mt || '') >= (b.plan.mt || '') ? a.plan : b.plan);
       const other = base === a ? b : a;
-      return { ...base, start: base.start || other.start, weeks: base.weeks || other.weeks, plan, sessions, log, tomb: tombs, resetAt: resetAt || undefined, updatedAt: newer(a.updatedAt, b.updatedAt) };
+      const team = { ...(b.team || {}), ...(a.team || {}) };
+      return { ...base, start: base.start || other.start, weeks: base.weeks || other.weeks, plan, sessions, log, tomb: tombs, resetAt: resetAt || undefined,
+        planBuilt: newer(a.planBuilt, b.planBuilt) || undefined, team: Object.keys(team).length ? team : undefined, updatedAt: newer(a.updatedAt, b.updatedAt) };
     }
     function mergeData(local, remote) {
       if (!remote) return local; if (!local) return remote;
@@ -4252,37 +4403,137 @@ const Charts = (() => {
     const canon = (v) => (Array.isArray(v) ? '[' + v.map(canon).join(',') + ']'
       : v && typeof v === 'object' ? '{' + Object.keys(v).filter(k => k !== 'updatedAt' && v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'
       : JSON.stringify(v));
-    const sameTracker = (a, b) => !!a && !!b && canon({ s: a.sessions, l: a.log, t: a.tomb || {}, r: a.resetAt || '', st: a.start || '', p: (a.plan || {}).mt || '' }) === canon({ s: b.sessions, l: b.log, t: b.tomb || {}, r: b.resetAt || '', st: b.start || '', p: (b.plan || {}).mt || '' });
+    const trKey = (a) => canon({ s: a.sessions, l: a.log, t: a.tomb || {}, r: a.resetAt || '', st: a.start || '', p: (a.plan || {}).mt || '', pb: a.planBuilt || '', tm: a.team || {} });
+    const sameTracker = (a, b) => !!a && !!b && trKey(a) === trKey(b);
     const sameData = (a, b) => !!a && !!b && (a.dataAt || '') === (b.dataAt || '') && canon(a.overrides || {}) === canon(b.overrides || {});
     const hasLocalData = () => Object.keys(state.data.garmin.days).length || Object.keys(state.data.body.rows).length || Object.keys(state.data.labs.rows).length;
+    const saveData = () => { try { localStorage.setItem(U.lsk(LS_KEY), JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data })); } catch (e) { /* место */ } };
 
-    /* ---------------- цикл синхронизации: скачать → слить → (если нужно) отправить */
+    /* ---------------- зоны: каждая — скачать → слить → при необходимости записать с условием */
+    async function withRetry(fn) {
+      for (let i = 0; ; i++) {
+        try { return await fn(); }
+        catch (e) { if (!e.conflict || i >= 3) throw e; }   // другое устройство успело записать — читаем заново
+      }
+    }
+    // Данные Garmin/Picooc/анализов: meta + куски c0…cN
+    const dataSig = (d) => (d.dataAt || '') + '|' + canon(d.overrides || {});
+    async function syncData() {
+      const base = `zones/${st.person}/data`;
+      return withRetry(async () => {
+        const meta = await getDoc(`${base}/meta`);
+        let remote = null;
+        if (meta && meta.updateTime !== st.ver.data) {
+          const n = +meta.fields.n.integerValue;
+          const parts = [];
+          for (let i = 0; i < n; i++) {
+            const d = await getDoc(`${base}/c${i}`);
+            if (!d) throw Object.assign(new Error('Неполные данные в облаке'), { conflict: true });
+            parts.push(unb64(d.fields.z.bytesValue));
+          }
+          const all = new Uint8Array(parts.reduce((x, p) => x + p.length, 0));
+          let o = 0; for (const p of parts) { all.set(p, o); o += p.length; }
+          remote = await ungz(all);
+        }
+        let changed = false;
+        if (remote) {
+          const md = mergeData(hasLocalData() || state.data.dataAt ? state.data : null, remote);
+          if (md !== state.data) { state.data = Object.assign(blank(), md); saveData(); changed = true; }
+        }
+        const remoteSig = remote ? dataSig(remote) : meta ? st.ver.dataSig : null;
+        const localSig = hasLocalData() || state.data.dataAt ? dataSig(state.data) : null;
+        if (localSig && localSig !== remoteSig) {
+          const bytes = await gzBytes(state.data);
+          const n = Math.max(1, Math.ceil(bytes.length / CHUNK));
+          const writes = [];
+          for (let i = 0; i < n; i++) writes.push({ update: { name: docName(`${base}/c${i}`), fields: { z: { bytesValue: b64(bytes.subarray(i * CHUNK, (i + 1) * CHUNK)) } } } });
+          const oldN = meta ? +meta.fields.n.integerValue : 0;
+          for (let i = n; i < oldN; i++) writes.push({ delete: docName(`${base}/c${i}`) });
+          writes.push({ update: { name: docName(`${base}/meta`), fields: { n: { integerValue: String(n) }, size: { integerValue: String(bytes.length) }, dataAt: { stringValue: state.data.dataAt || '' }, at: { stringValue: new Date().toISOString() } } }, currentDocument: pre(meta) });
+          const r = await commit(writes);
+          st.ver.data = r.writeResults.at(-1).updateTime; st.ver.dataSig = localSig;
+        } else if (meta) { st.ver.data = meta.updateTime; st.ver.dataSig = remoteSig; }
+        return changed;
+      });
+    }
+    // Свой трекер (вместе с планом и списком людей, чьи трекеры видит администратор)
+    async function syncTracker() {
+      const path = `zones/${st.person}/tracker/state`;
+      return withRetry(async () => {
+        const doc = await getDoc(path);
+        const remote = await unpack(doc);
+        let changed = false;
+        const mt = mergeTracker(TR, remote);
+        if (!sameTracker(mt, TR)) { TR = mt; setPlan(TR.plan); trSave(true); changed = true; }
+        if (!remote || !sameTracker(TR, remote)) {
+          if (TR.start || Object.keys(TR.sessions || {}).length || TR.plan || remote) {
+            const r = await commit([{ update: { name: docName(path), fields: await pack(TR) }, currentDocument: pre(doc) }]);
+            st.ver.tracker = r.writeResults[0].updateTime;
+          }
+        } else st.ver.tracker = doc.updateTime;
+        return changed;
+      });
+    }
+    // План, который прислал администратор (для участника): новее — заменяет план в трекере
+    async function syncIncomingPlan() {
+      const doc = await getDoc(`zones/${st.person}/tracker/plan`);
+      if (!doc || doc.updateTime === st.ver.plan) return false;
+      const p = await unpack(doc);
+      st.ver.plan = doc.updateTime;
+      if (!p || !p.start || ((TR.plan || {}).mt || '') >= (p.mt || '')) return false;
+      applyPlan(p);
+      return true;
+    }
+    // Питание: меню (пишет администратор), отметки (оба), дни сквоша (пишет администратор)
+    async function syncNutrition() {
+      let changed = false;
+      // меню
+      await withRetry(async () => {
+        const doc = await getDoc('shared/menu');
+        const rm = await unpack(doc);
+        if (rm && rm.start && ((NT.data || {}).mt || '') < (rm.mt || '')) { NT.data = rm; ntSave(true); changed = true; }
+        if (isAdmin() && NT.data && (!rm || (rm.mt || '') < (NT.data.mt || ''))) {
+          await commit([{ update: { name: docName('shared/menu'), fields: await pack(NT.data) }, currentDocument: pre(doc) }]);
+        }
+      });
+      // отметки
+      await withRetry(async () => {
+        const doc = await getDoc('shared/marks');
+        const rk = (await unpack(doc)) || {};
+        const merged = mergeNutrition({ data: 1, marks: NT.marks }, { data: 1, marks: rk }).marks;
+        if (canon(merged) !== canon(NT.marks)) { NT.marks = merged; ntSave(true); changed = true; }
+        if (canon(merged) !== canon(rk)) await commit([{ update: { name: docName('shared/marks'), fields: await pack(merged) }, currentDocument: pre(doc) }]);
+      });
+      // дни сквоша: администратор публикует из своего трекера, остальные получают
+      await withRetry(async () => {
+        const doc = await getDoc('shared/squash');
+        const rs = await unpack(doc);
+        if (isAdmin()) {
+          const mine = squashDays();
+          if (mine && (!rs || canon(rs) !== canon(mine))) await commit([{ update: { name: docName('shared/squash'), fields: await pack(mine) }, currentDocument: pre(doc) }]);
+        } else if (rs && canon(rs) !== canon(NT.sq || null)) { NT.sq = rs; ntSave(true); changed = true; }
+      });
+      return changed;
+    }
+    function squashDays() {
+      if (!TR || !TR.start || !TR.weeks) return null;
+      const from = TR.start, to = U.msToDate(U.dayMs(TR.start) + TR.weeks * 7 * DAY);
+      return { from, to, dates: [...new Set(Object.values(TR.sessions || {}).filter(s => s.kind === 'squash').map(s => s.date))].sort() };
+    }
+
+    /* ---------------- цикл синхронизации */
     async function syncNow() {
       if (!enabled) return;
       if (st.busy) { st.again = true; return; }
-      if (!hasToken()) { ui(); return; }
+      if (!signedIn()) { ui(); return; }
       st.busy = true; ui();
+      let changedLocal = false;
       try {
-        const meta = await ensureFile();
-        let remote = null;
-        if (meta && meta.version !== st.version) remote = await download(meta.id);
-        let changedLocal = false;
-        if (remote) {
-          const md = mergeData(hasLocalData() || state.data.dataAt ? state.data : null, remote.data);
-          const mt = mergeTracker(TR, remote.tracker);
-          if (md !== state.data) { state.data = Object.assign(blank(), md); changedLocal = true; }
-          if (!sameTracker(mt, TR)) { TR = mt; setPlan(TR.plan); changedLocal = true; }
-          if (changedLocal) { try { localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, savedAt: new Date().toISOString(), period: state.period, data: state.data })); } catch (e) { /* место */ } trSave(true); }
-          st.version = meta.version;
-          // нужно ли отправлять: локальная копия содержит что-то, чего нет в облаке
-          const needPush = st.pending || !sameTracker(TR, remote.tracker) || !sameData(state.data, remote.data);
-          if (needPush) await push();
-        } else if (!meta || st.pending) {
-          await push();
-        }
+        if (await syncData()) changedLocal = true;
+        if (!isAdmin() && await syncIncomingPlan()) changedLocal = true;   // план присылает администратор
+        if (await syncTracker()) changedLocal = true;
         if (await syncNutrition()) changedLocal = true;
-        st.pending = false; st.status = 'ok'; st.lastSync = new Date().toISOString(); persist();
-        if (changedLocal) render();
+        st.pending = false; st.pendingN = false; st.status = 'ok'; st.lastSync = new Date().toISOString(); persist();
       } catch (e) {
         if (e.offline) { st.status = 'offline'; }
         else if (e.code === 401) { st.status = 'off'; }
@@ -4290,14 +4541,22 @@ const Charts = (() => {
         persist();
       } finally {
         st.busy = false; ui();
+        if (changedLocal) render();
         if (st.again) { st.again = false; syncNow(); }
       }
     }
-    async function push() {
-      const doc = { app: 'health-dashboard', v: 1, savedAt: new Date().toISOString(), data: state.data, tracker: TR };
-      const m = await upload(doc);
-      st.version = m.version;
-      st.pending = false; persist();
+    // Администратор: отправить план другому человеку (training\plan.json с полем "for")
+    async function putPlan(person, plan) {
+      if (!enabled || !signedIn()) throw new Error('чтобы отправить план, войдите на сайте');
+      if (!isAdmin()) throw new Error('отправлять планы другим может только администратор');
+      await commit([{ update: { name: docName(`zones/${person}/tracker/plan`), fields: await pack(plan) } }]);
+    }
+    // Администратор: трекер другого человека — только чтение
+    async function readTracker(person) {
+      const [sd, pd] = await Promise.all([getDoc(`zones/${person}/tracker/state`), getDoc(`zones/${person}/tracker/plan`)]);
+      const tr = await unpack(sd), plan = await unpack(pd);
+      if (tr && plan && ((tr.plan || {}).mt || '') < (plan.mt || '')) tr.plan = plan;
+      return { tr, plan, at: sd ? sd.updateTime : null };
     }
     // локальное изменение → отправить через 2 с (пачкой)
     function changed(kind) {
@@ -4305,21 +4564,21 @@ const Charts = (() => {
       if (kind === 'nutrition') st.pendingN = true; else st.pending = true;
       persist(); ui();
       clearTimeout(timer);
-      timer = setTimeout(() => { if (hasToken() && navigator.onLine !== false) syncNow(); else { st.status = navigator.onLine === false ? 'offline' : st.status; ui(); } }, 2000);
+      timer = setTimeout(() => { if (signedIn() && navigator.onLine !== false) syncNow(); else { st.status = navigator.onLine === false ? 'offline' : st.status; ui(); } }, 2000);
     }
 
     function start() {
       if (!enabled) return;
       ui();
-      if (hasToken()) syncNow();
+      if (signedIn()) syncNow();
       // вернулись в приложение (телефон) — подтянуть изменения
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && hasToken() && !st.busy) syncNow(); });
-      window.addEventListener('online', () => { if (hasToken()) syncNow(); else ui(); });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && signedIn() && !st.busy) syncNow(); });
+      window.addEventListener('online', () => { if (signedIn()) syncNow(); else ui(); });
       window.addEventListener('offline', () => { st.status = 'offline'; ui(); });
       // приложение на главном экране: манифест и офлайн-кэш
       if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     }
-    return { enabled, start, changed, syncNow, signIn, signOut, state: st, mergeTracker, mergeData, hasToken, ui };
+    return { enabled, start, changed, syncNow, signIn, signOut, state: st, mergeTracker, mergeData, signedIn, isAdmin, ui, accountBox, loginForm, putPlan, readTracker, togglePanel };
   })();
 /*@end:sync*/
 
