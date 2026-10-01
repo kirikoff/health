@@ -35,20 +35,25 @@
   }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; }
+html, body { margin: 0; height: 100%; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   background: var(--page); color: var(--ink);
   font: 16px/1.4 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+  /* страница не прокручивается целиком: прокручивается только середина. Иначе в Safari на iPhone
+     панели браузера сворачиваются при прокрутке и нижние вкладки «плавают» */
+  display: flex; flex-direction: column; height: 100%; height: 100dvh; overflow: hidden;
 }
+.ab, .tabbar, .sync-panel { flex: none; }
+.scroller { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
 button { font: inherit; color: inherit; touch-action: manipulation; }
 [hidden] { display: none !important; }
 .wrap { max-width: 560px; margin: 0 auto; }
 
 /* шапка */
-.ab { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding-top: var(--top); }
+.ab { position: relative; z-index: 20; background: color-mix(in srgb, var(--page) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding-top: var(--top); }
 .ab-in { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; }
 .ab-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ab-back { border: 0; background: none; color: var(--s1); font-size: 17px; padding: 10px 8px 10px 0; margin-left: -2px; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
@@ -61,10 +66,10 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 .sync-chip[data-tone="busy"]::before { background: var(--s1); animation: pulse 1s infinite alternate; }
 @keyframes pulse { from { opacity: .3; } to { opacity: 1; } }
 
-main { padding: 12px 16px calc(84px + var(--bottom)); }
+main { padding: 12px 16px 24px; }
 
 /* нижняя панель вкладок */
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding-bottom: var(--bottom); }
+.tabbar { position: relative; z-index: 20; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--border); padding-bottom: var(--bottom); }
 .tabbar-in { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 560px; margin: 0 auto; }
 .tab { border: 0; background: none; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--muted); cursor: pointer; min-height: 54px; }
 .tab svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -258,7 +263,7 @@ textarea.note { width: 100%; font: inherit; font-size: 16px; color: var(--ink); 
   <div class="ab-title" id="title">Сегодня</div>
   <div class="sync-host" data-sync-host data-compact></div>
 </div></header>
-<main class="wrap" id="view"></main>
+<div class="scroller" id="scroller"><main class="wrap" id="view"></main></div>
 <nav class="tabbar" aria-label="Разделы"><div class="tabbar-in">
   <button type="button" class="tab" data-tab="today"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Сегодня</button>
   <button type="button" class="tab" data-tab="week"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>Неделя</button>
@@ -1462,6 +1467,7 @@ const U = {
   const longDate = (t) => { const d = new Date(t); return `${WD_FULL[(t / DAY + 3) % 7]}, ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
   const dm = (t) => fmtDate(t).slice(0, 5);
   const view = document.getElementById('view');
+  const scroller = document.getElementById('scroller');
   const titleEl = document.getElementById('title');
   const backBtn = document.getElementById('back');
   const nav = { tab: 'today', sid: null, add: false, week: null };
@@ -1509,7 +1515,7 @@ const U = {
     Object.assign(nav, patch);
     if (push) history.pushState({ ...nav }, '');
     render();
-    window.scrollTo(0, 0);
+    scroller.scrollTo(0, 0);
   }
   window.addEventListener('popstate', (e) => { Object.assign(nav, e.state || { tab: 'today', sid: null, add: false }); render(); });
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
@@ -1971,7 +1977,7 @@ const U = {
     }
     const N = NTD();
     const vs = h('div', 'seg');
-    for (const [id, text] of [['menu', 'Меню'], ['buy', 'Закупка']]) { const b = h('button', null, text); b.type = 'button'; b.setAttribute('aria-pressed', String(id === foodView)); b.onclick = () => { foodView = id; try { localStorage.setItem(LS_FOODVIEW, id); } catch (e) { /* нет */ } render(); window.scrollTo(0, 0); }; vs.appendChild(b); }
+    for (const [id, text] of [['menu', 'Меню'], ['buy', 'Закупка']]) { const b = h('button', null, text); b.type = 'button'; b.setAttribute('aria-pressed', String(id === foodView)); b.onclick = () => { foodView = id; try { localStorage.setItem(LS_FOODVIEW, id); } catch (e) { /* нет */ } render(); scroller.scrollTo(0, 0); }; vs.appendChild(b); }
     view.appendChild(vs);
     if (foodView === 'buy') return renderBuy();
     if (N.people.length > 1) {
@@ -2089,7 +2095,7 @@ const U = {
         row.appendChild(h('span', 'bi-box', on ? '✓' : ''));
         const t = h('div', 'grow'); t.appendChild(h('div', 'bi-name', x.prod)); if (x.hint) t.appendChild(h('div', 'bi-hint', x.hint)); row.appendChild(t);
         row.appendChild(h('span', 'bi-qty', x.pcs ? `${x.pcs} шт` : gKg(x.buy)));
-        row.onclick = () => { const y = window.scrollY; setMark(x.key, !isMarked(x.key)); render(); window.scrollTo(0, y); };
+        row.onclick = () => { const y = scroller.scrollTop; setMark(x.key, !isMarked(x.key)); render(); scroller.scrollTo(0, y); };
         box.appendChild(row);
       }
       view.appendChild(box);
