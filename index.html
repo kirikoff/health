@@ -4178,6 +4178,9 @@ const Charts = (() => {
       st.panel = force != null ? force : !st.panel;
       if (panelEl) { panelEl.remove(); panelEl = null; }
       if (!st.panel || signedIn()) return;
+      // форма входа уже есть на странице (блок «Синхронизация») — не дублируем, а переходим к ней
+      const ex = document.querySelector('form.sync-panel');
+      if (ex) { st.panel = false; ex.scrollIntoView({ block: 'center', behavior: 'smooth' }); const i = ex.querySelector('input'); if (i) i.focus({ preventScroll: true }); return; }
       panelEl = loginForm(() => togglePanel(false));
       const anchor = chip && (chip.closest('header') || chip.parentNode);
       anchor.parentNode.insertBefore(panelEl, anchor.nextSibling);
@@ -4276,9 +4279,12 @@ const Charts = (() => {
       const j = await authCall(`${AUTH}/accounts:signInWithPassword?key=${FB.apiKey}`, { email, password, returnSecureToken: true });
       Object.assign(st, { email: j.email || email, uid: j.localId, idToken: j.idToken, refresh: j.refreshToken, exp: Date.now() + (+j.expiresIn || 3600) * 1000 });
       // кто это и какие права — запись people/{uid}, её заводит администратор в консоли Firebase
-      const p = await getDoc(`people/${st.uid}`).catch((e) => { if (e.code === 403) return null; throw e; });
+      let why = '';
+      const p = await getDoc(`people/${st.uid}`).catch((e) => { if (e.code === 403) { why = 'нет доступа к people — проверьте, что правила Firestore опубликованы'; return null; } throw e; });
       const f = p && p.fields;
-      if (!f || !f.person) { Object.assign(st, { refresh: '', idToken: '', person: '', role: '' }); persist(); throw new Error('Аккаунт не настроен: нет записи people для этого пользователя'); }
+      if (!why && !p) why = `нет документа people/${st.uid} — ID документа должен совпадать с UID`;
+      if (!why && (!f || !f.person || !f.person.stringValue)) why = `в people/${st.uid} нет текстового поля person`;
+      if (why) { Object.assign(st, { refresh: '', idToken: '', person: '', role: '' }); persist(); throw new Error('Аккаунт не настроен: ' + why); }
       const person = f.person.stringValue, role = (f.role && f.role.stringValue) || 'member';
       // данные в браузере у каждого человека свои; у администратора — прежние ключи без суффикса
       const suffix = role === 'admin' ? '' : ':' + person;
