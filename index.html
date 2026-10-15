@@ -2837,7 +2837,11 @@ const Charts = (() => {
       return document.importNode(root, true);
     } catch (e) { return null; }
   }
-  function exItem(n, d, key) {
+  // Подходы недели для основных упражнений («основное» в шаблоне плана)
+  const exSets = (s) => { const w = s && PLAN.weeks[weekOf(s.date)]; return w ? w.sets : ''; };
+  const exSetsText = (v) => String(v).replace(/^(\d+(?:–\d+)?)×(\d+(?:–\d+)?)/, '$1 подх. × $2 повт.');
+  function exItem(n, d, key, sets) {
+    if (sets && d === 'основное') d = exSetsText(sets);
     const li = h('li');
     const ex = key ? (PLAN.exercises || {})[key] : null;
     if (!ex) { li.appendChild(h('span', null, n)); li.appendChild(h('span', 'muted', ` — ${d}`)); return li; }
@@ -3669,8 +3673,9 @@ const Charts = (() => {
       if (s.detail) form.appendChild(h('p', 'tr-dlg-detail', s.detail));
       if (tpl && tpl.items) {
         const ul = h('ol', 'tr-dlg-items');
-        for (const [n, d, k] of tpl.items) ul.appendChild(exItem(n, d, k));
+        for (const [n, d, k] of tpl.items) ul.appendChild(exItem(n, d, k, exSets(s)));
         form.appendChild(h('div', 'muted small', `Разминка: ${tpl.warmup}`));
+        if (tpl.note) form.appendChild(h('div', 'muted small', tpl.note));
         form.appendChild(ul);
         form.appendChild(h('div', 'muted small', `Заминка: ${tpl.cooldown}`));
       }
