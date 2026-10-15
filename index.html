@@ -272,6 +272,14 @@ main { padding: 0 max(16px, calc((100vw - 1320px) / 2)) 64px; }
 .tr-dlg-head h3 { margin: 0; font-size: 18px; }
 .tr-dlg-detail { margin: 10px 0 6px; color: var(--ink2); font-size: 13px; }
 .tr-dlg-items { margin: 6px 0; padding-left: 20px; font-size: 13px; }
+.ex-det > summary { cursor: pointer; list-style: none; }
+.ex-det > summary::-webkit-details-marker { display: none; }
+.ex-hint { color: var(--s1); font-size: 12px; white-space: nowrap; }
+.ex-hint::after { content: ' ▾'; }
+.ex-det[open] .ex-hint::after { content: ' ▴'; }
+.ex-pic { display: block; width: 100%; max-width: 420px; height: auto; margin: 8px 0 2px; background: var(--surface); border: 1px solid var(--grid); border-radius: 10px; }
+.ex-cues { margin: 4px 0 10px; padding-left: 18px; color: var(--ink2); }
+.ex-cues li { margin: 2px 0; }
 .tr-dialog fieldset { border: 1px solid var(--border); border-radius: 12px; margin: 12px 0 0; padding: 10px 12px 12px; }
 .tr-dialog legend { font-weight: 650; font-size: 13px; padding: 0 4px; }
 .tr-mark-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
@@ -2811,6 +2819,43 @@ const Charts = (() => {
     other: { kind: 'other', title: 'Другое', slot: 'am', time: '', pts: 5 },
   };
   const tplInfo = (k) => ({ detail: '', ...(TPL[k] || TPL.other), ...((PLAN.templates || {})[k] || {}) });
+  // Упражнение со схемой: в шаблоне плана элемент [название, задание, ключ], схема и подсказки —
+  // в PLAN.exercises[ключ] = { svg, cues }. SVG приходит из данных, поэтому чистится перед вставкой.
+  const EX_SVG_TAGS = new Set(['svg', 'g', 'path', 'line', 'polyline', 'polygon', 'circle', 'ellipse', 'rect', 'text', 'tspan', 'style', 'title']);
+  function exSvg(src) {
+    try {
+      const root = new DOMParser().parseFromString(String(src), 'image/svg+xml').documentElement;
+      if (!root || root.nodeName !== 'svg') return null;
+      const clean = (el) => {
+        for (const a of [...el.attributes]) if (/^on|href/i.test(a.name) || /url\s*\(|javascript:/i.test(a.value)) el.removeAttribute(a.name);
+        for (const c of [...el.children]) {
+          if (!EX_SVG_TAGS.has(c.nodeName) || (c.nodeName === 'style' && /@import|url\s*\(/i.test(c.textContent))) c.remove();
+          else clean(c);
+        }
+      };
+      clean(root);
+      return document.importNode(root, true);
+    } catch (e) { return null; }
+  }
+  function exItem(n, d, key) {
+    const li = h('li');
+    const ex = key ? (PLAN.exercises || {})[key] : null;
+    if (!ex) { li.appendChild(h('span', null, n)); li.appendChild(h('span', 'muted', ` — ${d}`)); return li; }
+    const det = h('details', 'ex-det');
+    const sm = h('summary');
+    sm.appendChild(h('span', null, n)); sm.appendChild(h('span', 'muted', ` — ${d}`)); sm.appendChild(h('span', 'ex-hint', ' схема'));
+    det.appendChild(sm);
+    let filled = false;
+    det.addEventListener('toggle', () => {
+      if (!det.open || filled) return;
+      filled = true;
+      const pic = ex.svg ? exSvg(ex.svg) : null;
+      if (pic) { pic.setAttribute('class', 'ex-pic'); det.appendChild(pic); }
+      if ((ex.cues || []).length) { const ul = h('ul', 'ex-cues'); for (const c of ex.cues) ul.appendChild(h('li', null, c)); det.appendChild(ul); }
+    });
+    li.appendChild(det);
+    return li;
+  }
   const KIND = {
     strength: { label: 'Силовая', color: 'var(--s2)', garmin: ['strength_training', 'hiit'] },
     squash: { label: 'Сквош', color: 'var(--s1)', garmin: ['squash', 'tennis', 'padel', 'badminton'] },
@@ -3624,7 +3669,7 @@ const Charts = (() => {
       if (s.detail) form.appendChild(h('p', 'tr-dlg-detail', s.detail));
       if (tpl && tpl.items) {
         const ul = h('ol', 'tr-dlg-items');
-        for (const [n, d] of tpl.items) { const li = h('li'); li.appendChild(h('span', null, n)); li.appendChild(h('span', 'muted', ` — ${d}`)); ul.appendChild(li); }
+        for (const [n, d, k] of tpl.items) ul.appendChild(exItem(n, d, k));
         form.appendChild(h('div', 'muted small', `Разминка: ${tpl.warmup}`));
         form.appendChild(ul);
         form.appendChild(h('div', 'muted small', `Заминка: ${tpl.cooldown}`));
@@ -4279,12 +4324,9 @@ const Charts = (() => {
       const j = await authCall(`${AUTH}/accounts:signInWithPassword?key=${FB.apiKey}`, { email, password, returnSecureToken: true });
       Object.assign(st, { email: j.email || email, uid: j.localId, idToken: j.idToken, refresh: j.refreshToken, exp: Date.now() + (+j.expiresIn || 3600) * 1000 });
       // кто это и какие права — запись people/{uid}, её заводит администратор в консоли Firebase
-      let why = '';
-      const p = await getDoc(`people/${st.uid}`).catch((e) => { if (e.code === 403) { why = 'нет доступа к people — проверьте, что правила Firestore опубликованы'; return null; } throw e; });
+      const p = await getDoc(`people/${st.uid}`).catch((e) => { if (e.code === 403) return null; throw e; });
       const f = p && p.fields;
-      if (!why && !p) why = `нет документа people/${st.uid} — ID документа должен совпадать с UID`;
-      if (!why && (!f || !f.person || !f.person.stringValue)) why = `в people/${st.uid} нет текстового поля person`;
-      if (why) { Object.assign(st, { refresh: '', idToken: '', person: '', role: '' }); persist(); throw new Error('Аккаунт не настроен: ' + why); }
+      if (!f || !f.person) { Object.assign(st, { refresh: '', idToken: '', person: '', role: '' }); persist(); throw new Error('Аккаунт не настроен: нет записи people для этого пользователя'); }
       const person = f.person.stringValue, role = (f.role && f.role.stringValue) || 'member';
       // данные в браузере у каждого человека свои; у администратора — прежние ключи без суффикса
       const suffix = role === 'admin' ? '' : ':' + person;
