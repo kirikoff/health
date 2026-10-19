@@ -386,7 +386,20 @@ const U = {
   let PLAN = { ...EMPTY_PLAN };
   function setPlan(p) {
     if (!p || !p.start || !Array.isArray(p.weeks)) { PLAN = { ...EMPTY_PLAN }; return; }
-    PLAN = { ...EMPTY_PLAN, ...p, start: U.dayMs(p.start), end: U.dayMs(p.end), weeks: p.weeks.map((w, i) => ({ n: i + 1, ...w })) };
+    const z2 = Array.isArray(p.zone2) ? p.zone2 : EMPTY_PLAN.zone2;
+    // Зона 2 может задаваться по неделе (weeks[i].zone2), иначе — общая plan.zone2
+    PLAN = { ...EMPTY_PLAN, ...p, zone2: z2, start: U.dayMs(p.start), end: U.dayMs(p.end),
+      weeks: p.weeks.map((w, i) => ({ n: i + 1, ...w, zone2: Array.isArray(w.zone2) ? w.zone2 : z2 })) };
+  }
+  // Зона 2 на дату (мс): по неделе плана; вне плана — общая
+  const zone2At = (t) => { const i = Math.floor((t - PLAN.start) / (7 * DAY)); return (PLAN.weeks[i] || {}).zone2 || PLAN.zone2; };
+  const zoneTxt = (z) => `${z[0]}–${z[1]}`;
+  // Зона 2 по неделям одной строкой: «110–128 (нед. 1–4), 110–135 (нед. 5–12)»
+  function zone2Summary() {
+    const runs = [];
+    PLAN.weeks.forEach(w => { const z = zoneTxt(w.zone2), r = runs[runs.length - 1]; if (r && r.z === z) r.b = w.n; else runs.push({ z, a: w.n, b: w.n }); });
+    if (runs.length <= 1) return zoneTxt(PLAN.weeks.length ? PLAN.weeks[0].zone2 : PLAN.zone2);
+    return runs.map(r => `${r.z} (нед. ${r.a === r.b ? r.a : `${r.a}–${r.b}`})`).join(', ');
   }
   const hasPlan = () => !!PLAN.start;
   const planName = () => PLAN.name || 'План тренировок';
@@ -593,9 +606,10 @@ const U = {
         const b = tplInfo(it.tpl);
         const t = m + it.day * DAY;
         const dur = typeof it.dur === 'string' ? w[it.dur] : it.dur;
-        let detail = b.detail || '';
+        const base = (b.detail || '').replace(/\{zone2\}/g, zoneTxt(w.zone2));   // {zone2} в задании → зона недели
+        let detail = base;
         if (it.detail === 'sets') detail = `Подходы: ${w.sets}`;
-        else if (it.detail === 'minutes') detail = `${dur} мин. ${b.detail || ''}`.trim();
+        else if (it.detail === 'minutes') detail = `${dur} мин. ${base}`.trim();
         const id = `${iso(t)}-${b.slot}-${it.tpl}`;
         sessions[id] = { id, date: iso(t), tpl: it.tpl, kind: b.kind, title: b.title, slot: b.slot, time: b.time, dur: dur ?? null, detail, optional: !!it.optional };
       }
@@ -653,6 +667,34 @@ const U = {
     TR.resetAt = new Date().toISOString(); TR.planBuilt = keepPlan && keepPlan.mt;
     Object.values(TR.sessions).forEach(x => { x.mt = TR.resetAt; });
   }
+  // Обновить тренировки по текущему плану, сохранив отметки.
+  // Меняются только тренировки плана без отметки, с сегодняшнего дня, не перенесённые и не изменённые вручную.
+  // Прошлое, отмеченное, добавленное и изменённое вручную не трогается. resetAt не ставится — отметки переживают синхронизацию.
+  const SESS_FIELDS = ['date', 'tpl', 'kind', 'title', 'slot', 'time', 'dur', 'detail', 'optional'];
+  function softUpdateFromPlan() {
+    if (!hasPlan()) return { error: 'План не загружен' };
+    const fresh = buildDefaultPlan();
+    if (TR.start !== fresh.start || TR.weeks !== fresh.weeks)
+      return { error: `В новом плане другая дата старта или число недель (${fmtDate(U.dayMs(fresh.start))}, ${fresh.weeks} нед. против ${TR.start ? fmtDate(U.dayMs(TR.start)) : '—'}, ${TR.weeks || 0} нед.) — сохранить отметки нельзя, нужна полная пересборка` };
+    const base = [TR.planBuilt, TR.resetAt].filter(Boolean).sort().at(-1) || '';
+    const now = new Date().toISOString(), today = iso(todayMs());
+    const r = { updated: 0, added: 0, removed: 0, keptManual: 0 };
+    const untouched = (x) => !x.custom && !x.extra && (x.mt || '') <= base;
+    for (const [id, x] of Object.entries(TR.sessions)) {
+      if (TR.log[id] || x.date < today) continue;
+      if (!untouched(x)) { if (fresh.sessions[id] && !x.custom && !x.extra) r.keptManual++; continue; }
+      const y = fresh.sessions[id];
+      if (!y) { delete TR.sessions[id]; tomb('s:' + id); r.removed++; continue; }
+      if (SESS_FIELDS.some(k => (x[k] ?? null) !== (y[k] ?? null))) { TR.sessions[id] = { ...x, ...y, mt: now }; r.updated++; }
+    }
+    for (const [id, y] of Object.entries(fresh.sessions)) {
+      if (TR.sessions[id] || y.date < today || (TR.tomb || {})['s:' + id]) continue;
+      TR.sessions[id] = { ...y, mt: now }; r.added++;
+    }
+    TR.planBuilt = (TR.plan && TR.plan.mt) || now;
+    return r;
+  }
+  const softUpdateMsg = (r) => r.error || [`обновлено ${r.updated}`, `добавлено ${r.added}`, `убрано ${r.removed}`].join(', ') + (r.keptManual ? `; перенесённые или изменённые вручную оставлены как есть: ${r.keptManual}` : '') + '. Отметки и прошлые дни не тронуты.';
   // Новый план пришёл, а тренировки собраны по старому
   const planOutdated = () => !!(TR.plan && TR.planBuilt && (TR.plan.mt || '') > TR.planBuilt && Object.keys(TR.sessions || {}).length);
   // Просмотр чужого трекера (администратор, только чтение): на время отрисовки подменяем TR и план
