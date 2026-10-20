@@ -239,6 +239,8 @@ details.ex-det[open] .ex-hint::after { content: ' ▴'; }
 .meal-body td { padding: 4px 0; border-top: 1px solid var(--grid); }
 .meal-body td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .meal-body ol { padding-left: 18px; margin: 8px 0 0; color: var(--ink2); }
+.meal-copy { flex: none; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--ink2); cursor: pointer; }
+.meal-copy:active { background: var(--grid); }
 .nt-sum { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; padding: 10px 14px; border-top: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
 .nt-sum .good { color: var(--good-text); font-weight: 600; } .nt-sum .bad { color: var(--bad-text); font-weight: 600; }
 .nt-note { background: var(--warn-bg); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 10px; }
@@ -1542,7 +1544,7 @@ const U = {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-20 11:28';
+    const BUILD = '2026-10-20 12:08';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
@@ -2088,6 +2090,19 @@ const U = {
   let buyW = null, buyHide = false;
   const gKg = (g) => (g >= 1000 ? `${N2.format(g / 1000)} кг` : `${N0.format(g)} г`);
   const gP = (g) => (g < 10 ? `${N1.format(g)} г` : `${N0.format(Math.round(g / 5) * 5)} г`);
+  // текст приёма пищи для вставки в Mera: «Блюдо: продукт 60 г, продукт 200 г»
+  function mealText(r, port, n) {
+    if (port.length) return `${r.name}: ${port.map(x => `${x.prod.toLowerCase()} ${g1(x.g)} г`).join(', ')}`;
+    return `${r.name} (${N0.format(n.kcal)} ккал, белки ${N0.format(n.P)} г, жиры ${N0.format(n.F)} г, углеводы ${N0.format(n.C)} г)`;
+  }
+  const g1 = (g) => (g < 10 ? N1.format(g) : N0.format(Math.round(g)));
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* старый способ ниже */ }
+    const ta = h('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove(); return ok;
+  }
   function renderFood() {
     titleEl.textContent = 'Питание';
     if (!hasNutrition()) {
@@ -2127,10 +2142,17 @@ const U = {
       tx.appendChild(h('div', 'meal-slot', `${m.label} · ${s.short}`));
       tx.appendChild(h('div', 'meal-name', r.name));
       tx.appendChild(h('div', 'meal-sub', `${N0.format(n.kcal)} ккал · Б ${N0.format(n.P)} · Ж ${N0.format(n.F)} · У ${N0.format(n.C)}`));
-      sm.appendChild(tx); sm.appendChild(h('span', 'chev', '›'));
+      const port = ntPortion(m.rid, p);
+      const cp = h('button', 'meal-copy', 'Копировать'); cp.type = 'button';
+      cp.setAttribute('aria-label', `Скопировать состав: ${r.name}`);
+      cp.onclick = async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const ok = await copyText(mealText(r, port, n));
+        toast(ok ? 'Скопировано' : 'Не удалось скопировать', ok ? 'Вставьте текст в Mera' : 'Буфер обмена недоступен в этом браузере');
+      };
+      sm.appendChild(tx); sm.appendChild(cp); sm.appendChild(h('span', 'chev', '›'));
       det.appendChild(sm);
       const body = h('div', 'meal-body');
-      const port = ntPortion(m.rid, p);
       if (port.length) {
         const tb = h('table');
         for (const x of port) { const tr = h('tr'); tr.appendChild(h('td', null, x.prod)); tr.appendChild(h('td', null, gP(x.g))); tb.appendChild(tr); }
