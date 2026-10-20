@@ -531,6 +531,8 @@ const U = {
     other: { kind: 'other', title: 'Другое', slot: 'am', time: '', pts: 5 },
   };
   const tplInfo = (k) => ({ detail: '', ...(TPL[k] || TPL.other), ...((PLAN.templates || {})[k] || {}) });
+  // Все типы тренировок: встроенные + новые из шаблонов плана (с названием); other — последним
+  const tplKeys = () => [...new Set([...Object.keys(TPL).filter(k => k !== 'other'), ...Object.keys(PLAN.templates || {}).filter(k => !TPL[k] && (PLAN.templates[k] || {}).title), 'other'])];
   // Упражнение со схемой: в шаблоне плана элемент [название, задание, ключ], схема и подсказки —
   // в PLAN.exercises[ключ] = { svg, cues }. SVG приходит из данных, поэтому чистится перед вставкой.
   const EX_SVG_TAGS = new Set(['svg', 'g', 'path', 'line', 'polyline', 'polygon', 'circle', 'ellipse', 'rect', 'text', 'tspan', 'style', 'title']);
@@ -577,6 +579,7 @@ const U = {
     squash: { label: 'Сквош', color: 'var(--s1)', garmin: ['squash', 'tennis', 'padel', 'badminton'] },
     zone2: { label: 'Зона 2', color: 'var(--s3)', garmin: ['lap_swimming', 'open_water_swimming', 'indoor_cycling', 'cycling', 'walking', 'hiking', 'treadmill_running', 'elliptical', 'indoor_rowing', 'stair_climbing', 'floor_climbing', 'running'] },
     recovery: { label: 'Восстановление', color: 'var(--s4)', garmin: ['lap_swimming', 'open_water_swimming'] },
+    mobility: { label: 'Зарядка', color: 'var(--s5)', garmin: [] },
     check: { label: 'Контроль', color: 'var(--s7)', garmin: [] },
     other: { label: 'Другое', color: 'var(--s6)', garmin: [] },
   };
@@ -610,6 +613,7 @@ const U = {
         let detail = base;
         if (it.detail === 'sets') detail = `Подходы: ${w.sets}`;
         else if (it.detail === 'minutes') detail = `${dur} мин. ${base}`.trim();
+        else if (it.detail && w[it.detail] != null) detail = `Подходы: ${w[it.detail]}`;   // своё поле подходов недели (например, homeSets)
         const id = `${iso(t)}-${b.slot}-${it.tpl}`;
         sessions[id] = { id, date: iso(t), tpl: it.tpl, kind: b.kind, title: b.title, slot: b.slot, time: b.time, dur: dur ?? null, detail, optional: !!it.optional };
       }
@@ -722,7 +726,7 @@ const U = {
   const weekOf = (date) => Math.floor((U.dayMs(date) - trStart()) / (7 * DAY));   // 0..11
   const weekStart = (i) => trStart() + i * 7 * DAY;
   const sessionsOfWeek = (i) => Object.values(TR.sessions).filter(s => weekOf(s.date) === i).sort((a, b) => a.date.localeCompare(b.date) || (a.slot === b.slot ? 0 : a.slot === 'am' ? -1 : 1));
-  const sessPts = (s) => (TPL[s.tpl] || TPL.other).pts;
+  const sessPts = (s) => tplInfo(s.tpl).pts;   // очки — из шаблона плана, иначе из TPL
   const covered = (s) => { const l = TR.log[s.id]; return !!l && (l.st === 'done' || l.st === 'replaced' || l.st === 'rest' || l.joker); };
 
   // Garmin: тренировки и шаги за день (из загруженных данных дашборда)
@@ -1538,7 +1542,7 @@ const U = {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-19 19:44';
+    const BUILD = '2026-10-20 11:28';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
@@ -1695,7 +1699,7 @@ const U = {
     const row = h('div', 'acts');
     const opts = [['done', '✓', 'Сделал', 'good'], ['replaced', '↺', 'Зона 2', 'good'], ['rest', '☾', 'Отдых', 'none'], ['skipped', '✕', 'Пропуск', 'crit']];
     for (const [st, ic, lab, tone] of opts) {
-      if (st === 'replaced' && s.kind === 'zone2') continue;
+      if (st === 'replaced' && (s.kind === 'zone2' || s.kind === 'mobility')) continue;
       const b = h('button', 'act ' + tone); b.type = 'button';
       b.appendChild(h('span', 'ic', ic)); b.appendChild(h('span', null, lab));
       b.setAttribute('aria-pressed', String(!!l && l.st === st && !l.joker));
@@ -1894,7 +1898,7 @@ const U = {
     const g = h('div', 'stgrid');
     const opts = [['done', '✓', 'Сделал', 'good'], ['replaced', '↺', 'Зона 2', 'good'], ['rest', '☾', 'Отдых', 'none'], ['skipped', '✕', 'Пропуск', 'crit']];
     for (const [st, ic, lab, tone] of opts) {
-      if (st === 'replaced' && s.kind === 'zone2') continue;
+      if (st === 'replaced' && (s.kind === 'zone2' || s.kind === 'mobility')) continue;
       const b = h('button', 'stbtn ' + tone); b.type = 'button';
       b.appendChild(h('span', 'ic', ic)); b.appendChild(h('span', null, lab));
       b.setAttribute('aria-pressed', String(!!l && l.st === st && !l.joker));
@@ -2000,9 +2004,8 @@ const U = {
     const today = todayMs();
     view.appendChild(h('div', 'muted', `${longDate(today)}. Выберите, что сделали, — тренировка сразу будет отмечена. Очков не даёт: они за соблюдение плана.`));
     const list = h('div', 'list'); list.style.marginTop = '12px';
-    const kinds = ['A', 'B', 'squash_short', 'squash_long', 'swim', 'cardio', 'pool_easy', 'other'];
-    for (const k of kinds) {
-      const b = TPL[k];
+    for (const k of tplKeys()) {
+      const b = tplInfo(k);
       const row = h('button', 'li'); row.type = 'button';
       const bar = h('span', 'bar'); bar.style.setProperty('--c', (KIND[b.kind] || KIND.other).color); row.appendChild(bar);
       row.appendChild(h('div', 'grow li-title', b.title));

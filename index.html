@@ -2833,6 +2833,8 @@ const Charts = (() => {
     other: { kind: 'other', title: 'Другое', slot: 'am', time: '', pts: 5 },
   };
   const tplInfo = (k) => ({ detail: '', ...(TPL[k] || TPL.other), ...((PLAN.templates || {})[k] || {}) });
+  // Все типы тренировок: встроенные + новые из шаблонов плана (с названием); other — последним
+  const tplKeys = () => [...new Set([...Object.keys(TPL).filter(k => k !== 'other'), ...Object.keys(PLAN.templates || {}).filter(k => !TPL[k] && (PLAN.templates[k] || {}).title), 'other'])];
   // Упражнение со схемой: в шаблоне плана элемент [название, задание, ключ], схема и подсказки —
   // в PLAN.exercises[ключ] = { svg, cues }. SVG приходит из данных, поэтому чистится перед вставкой.
   const EX_SVG_TAGS = new Set(['svg', 'g', 'path', 'line', 'polyline', 'polygon', 'circle', 'ellipse', 'rect', 'text', 'tspan', 'style', 'title']);
@@ -2879,6 +2881,7 @@ const Charts = (() => {
     squash: { label: 'Сквош', color: 'var(--s1)', garmin: ['squash', 'tennis', 'padel', 'badminton'] },
     zone2: { label: 'Зона 2', color: 'var(--s3)', garmin: ['lap_swimming', 'open_water_swimming', 'indoor_cycling', 'cycling', 'walking', 'hiking', 'treadmill_running', 'elliptical', 'indoor_rowing', 'stair_climbing', 'floor_climbing', 'running'] },
     recovery: { label: 'Восстановление', color: 'var(--s4)', garmin: ['lap_swimming', 'open_water_swimming'] },
+    mobility: { label: 'Зарядка', color: 'var(--s5)', garmin: [] },
     check: { label: 'Контроль', color: 'var(--s7)', garmin: [] },
     other: { label: 'Другое', color: 'var(--s6)', garmin: [] },
   };
@@ -2912,6 +2915,7 @@ const Charts = (() => {
         let detail = base;
         if (it.detail === 'sets') detail = `Подходы: ${w.sets}`;
         else if (it.detail === 'minutes') detail = `${dur} мин. ${base}`.trim();
+        else if (it.detail && w[it.detail] != null) detail = `Подходы: ${w[it.detail]}`;   // своё поле подходов недели (например, homeSets)
         const id = `${iso(t)}-${b.slot}-${it.tpl}`;
         sessions[id] = { id, date: iso(t), tpl: it.tpl, kind: b.kind, title: b.title, slot: b.slot, time: b.time, dur: dur ?? null, detail, optional: !!it.optional };
       }
@@ -3024,7 +3028,7 @@ const Charts = (() => {
   const weekOf = (date) => Math.floor((U.dayMs(date) - trStart()) / (7 * DAY));   // 0..11
   const weekStart = (i) => trStart() + i * 7 * DAY;
   const sessionsOfWeek = (i) => Object.values(TR.sessions).filter(s => weekOf(s.date) === i).sort((a, b) => a.date.localeCompare(b.date) || (a.slot === b.slot ? 0 : a.slot === 'am' ? -1 : 1));
-  const sessPts = (s) => (TPL[s.tpl] || TPL.other).pts;
+  const sessPts = (s) => tplInfo(s.tpl).pts;   // очки — из шаблона плана, иначе из TPL
   const covered = (s) => { const l = TR.log[s.id]; return !!l && (l.st === 'done' || l.st === 'replaced' || l.st === 'rest' || l.joker); };
 
   // Garmin: тренировки и шаги за день (из загруженных данных дашборда)
@@ -3572,7 +3576,7 @@ const Charts = (() => {
 
     // легенда
     const lg = h('div', 'legend tr-legend');
-    for (const kk of ['strength', 'squash', 'zone2', 'recovery']) { const li = h('span', 'legend-item'); const key = h('span', 'legend-key rect'); key.style.setProperty('--c', KIND[kk].color); li.appendChild(key); li.appendChild(h('span', null, KIND[kk].label)); lg.appendChild(li); }
+    for (const kk of ['strength', 'squash', 'zone2', 'recovery', 'mobility']) { const li = h('span', 'legend-item'); const key = h('span', 'legend-key rect'); key.style.setProperty('--c', KIND[kk].color); li.appendChild(key); li.appendChild(h('span', null, KIND[kk].label)); lg.appendChild(li); }
     lg.appendChild(h('span', 'muted', '· точка у даты — светофор готовности · перетащите тренировку на другой день или нажмите на неё, чтобы отметить и изменить'));
     sec.appendChild(lg);
 
@@ -3730,7 +3734,7 @@ const Charts = (() => {
       if (t > today) mk.appendChild(h('div', 'muted small', 'Отметить можно в день тренировки или позже.'));
       const row = h('div', 'tr-mark-row');
       for (const [code, d] of Object.entries(ST)) {
-        if (code === 'replaced' && s.kind === 'zone2') continue;
+        if (code === 'replaced' && (s.kind === 'zone2' || s.kind === 'mobility')) continue;
         const b = h('button', 'btn small tr-mark ' + d.tone, d.label); b.type = 'button';
         b.disabled = t > today;
         b.setAttribute('aria-pressed', String(!!l && l.st === code && !l.joker));
@@ -3767,7 +3771,7 @@ const Charts = (() => {
     const grid = h('div', 'tr-edit-grid');
     const field = (label, input) => { const f = h('label', 'tr-field'); f.appendChild(h('span', null, label)); f.appendChild(input); grid.appendChild(f); return input; };
     const tplSel = document.createElement('select'); tplSel.className = 'tr-input';
-    for (const [k2, v2] of Object.entries(TPL)) { const o = document.createElement('option'); o.value = k2; o.textContent = v2.title; tplSel.appendChild(o); }
+    for (const k2 of tplKeys()) { const o = document.createElement('option'); o.value = k2; o.textContent = tplInfo(k2).title; tplSel.appendChild(o); }
     tplSel.value = s ? s.tpl : 'cardio';
     if (isNew) field('Тип', tplSel);
     const title = field('Название', Object.assign(document.createElement('input'), { className: 'tr-input', value: s ? s.title : tplInfo(tplSel.value).title }));
@@ -4669,7 +4673,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-19 19:44';
+    const BUILD = '2026-10-20 11:28';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
