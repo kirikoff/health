@@ -3244,6 +3244,8 @@ const Charts = (() => {
 
   /* ---------------- календарь меню: неделя начинается в воскресенье (день заготовки) */
   const ntStart = () => U.dayMs(NTD().start);
+  // Первый день питания по меню (поле firstDay, необязательное): до него меню пустое, закупка и порции заготовки — без этих дней
+  const ntFirst = () => (NTD().firstDay ? Math.max(U.dayMs(NTD().firstDay), ntStart()) : ntStart());
   const ntCycle = () => NTD().weeks.length;
   const ntWeekNo = (t) => Math.floor((t - ntStart()) / (7 * DAY));                 // номер недели от старта (может быть < 0)
   const ntWeekStart = (w) => ntStart() + w * 7 * DAY;
@@ -3251,10 +3253,11 @@ const Charts = (() => {
   const ntToday = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
   function ntDay(t) {
     const w = ntWeekNo(t), idx = ntMenuIdx(w), dow = Math.round((t - ntWeekStart(w)) / DAY);
-    return { t, w, idx, dow, wd: WD_SUN[dow], day: NTD().weeks[idx].days[dow], before: t < ntStart() };
+    return { t, w, idx, dow, wd: WD_SUN[dow], day: NTD().weeks[idx].days[dow], before: t < ntFirst() };
   }
   // День сквоша: по трекеру тренировок (если дата в его периоде), иначе — по типовой неделе меню
   function ntSquash(t) {
+    if (t < ntFirst()) return false;
     const date = U.msToDate(t);
     // на устройстве другого человека — дни сквоша администратора из облака (shared/squash)
     if (U.who && NT.sq) { if (date >= NT.sq.from && date < NT.sq.to) return NT.sq.dates.includes(date); return (NTD().squashDefault || []).includes(ntDay(t).dow); }
@@ -3267,8 +3270,9 @@ const Charts = (() => {
   const ntPerson = (id) => NTD().people.find(p => p.id === id) || NTD().people[0];
   // Приёмы пищи дня для человека: [{slot, label, rid, src}]
   function ntMeals(t, p) {
-    const { day } = ntDay(t);
+    const { day, before } = ntDay(t);
     const out = [];
+    if (before) return out;
     for (const [slot, label] of SLOTS) {
       if (slot === 'X') { if (p.squash && ntSquash(t) && NTD().squashExtra) out.push({ slot, label, rid: NTD().squashExtra, src: 'squash' }); continue; }
       if (day[slot]) out.push({ slot, label, rid: day[slot], src: (day.src || {})[slot] || 'morning' });
@@ -3334,7 +3338,12 @@ const Charts = (() => {
     if (!b) return null;
     const people = NTD().people;
     const sumF = people.reduce((a, p) => a + p.factor, 0);
-    const dishes = b.dishes.map(dsh => {
+    const ws = ntWeekStart(w), first = ntFirst(), cut = ws < first;
+    // неделя, в которой начинается меню: порции — только по дням с первого дня питания
+    const eat = (rid) => { let n = 0, sun = false; for (let d = 0; d < 7; d++) { const dd = NTD().weeks[idx].days[d]; if (ws + d * DAY >= first && (dd.L === rid || dd.D === rid)) { n++; if (d === 0) sun = true; } } return { n, sun }; };
+    const dishes = b.dishes.map(dsh0 => {
+      let dsh = dsh0;
+      if (cut) { const e = eat(dsh0.r); dsh = { ...dsh0, days: e.n, use: !e.sun && dsh0.use.startsWith('ужин Вс') ? dsh0.use.replace('ужин Вс', 'ужин Пн') : dsh0.use }; }
       const r = NTD().recipes[dsh.r];
       const ingr = (r.ingr || []).map(([prod, g, only]) => {
         const eaters = people.filter(p => !only || only === p.id);
@@ -3949,6 +3958,11 @@ const Charts = (() => {
       dh.appendChild(h('span', 'tr-date', fmtDate(t).slice(0, 5)));
       if (sq) { const c = h('span', 'nt-sq', 'сквош'); c.title = 'День сквоша (по трекеру): добавка углеводов'; dh.appendChild(c); }
       col.appendChild(dh);
+      if (info.before) {
+        col.appendChild(h('div', 'nt-note', t >= ntStart() ? `Меню — с ${fmtDate(ntFirst()).slice(0, 5)}. Закупка и заготовка — вкладка «Готовка».` : `Меню — с ${fmtDate(ntFirst()).slice(0, 5)}.`));
+        week.appendChild(col);
+        continue;
+      }
       for (const m of ntMeals(t, p)) {
         const r = N.recipes[m.rid] || { name: m.rid };
         const n = ntNutr(m.rid, p);
@@ -3997,7 +4011,7 @@ const Charts = (() => {
       tb.appendChild(tr);
     }
     const avg = h('tr'); avg.appendChild(h('td', 'strong', 'Среднее'));
-    for (const k of keys) avg.appendChild(h('td', 'num strong', fmtK(k, rows.reduce((a, r) => a + r.tot[k], 0) / rows.length)));
+    for (const k of keys) avg.appendChild(h('td', 'num strong', fmtK(k, rows.reduce((a, r) => a + r.tot[k], 0) / (rows.length || 1))));
     tb.appendChild(avg);
     const tgr = h('tr'); tgr.appendChild(h('td', 'muted', 'Цель'));
     for (const k of keys) { const tg = ntTarget(p, k, null); tgr.appendChild(h('td', 'num muted', tg ? `${tg.mode === 'min' ? '≥ ' : tg.mode === 'max' ? '≤ ' : ''}${f0(tg.v)}${tg.squashAdd ? ` (+${f0(tg.squashAdd)})` : ''}` : '')); }
@@ -4673,7 +4687,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-20 12:08';
+    const BUILD = '2026-10-25 10:34';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
