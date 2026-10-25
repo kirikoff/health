@@ -1043,7 +1043,7 @@ const U = {
     const eat = (rid) => { let n = 0, sun = false; for (let d = 0; d < 7; d++) { const dd = NTD().weeks[idx].days[d]; if (ws + d * DAY >= first && (dd.L === rid || dd.D === rid)) { n++; if (d === 0) sun = true; } } return { n, sun }; };
     const dishes = b.dishes.map(dsh0 => {
       let dsh = dsh0;
-      if (cut) { const e = eat(dsh0.r); dsh = { ...dsh0, days: e.n, use: !e.sun && dsh0.use.startsWith('ужин Вс') ? dsh0.use.replace('ужин Вс', 'ужин Пн') : dsh0.use }; }
+      if (cut) { const e = eat(dsh0.r); dsh = { ...dsh0, days: e.n, use: !e.sun && dsh0.use.startsWith('ужин Вс') ? dsh0.use.replace(/^ужин Вс, /, 'ужин ').replace(/^ужин Вс–/, 'ужин Пн–') : dsh0.use }; }
       const r = NTD().recipes[dsh.r];
       const ingr = (r.ingr || []).map(([prod, g, only]) => {
         const eaters = people.filter(p => !only || only === p.id);
@@ -1553,7 +1553,7 @@ const U = {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-25 10:34';
+    const BUILD = '2026-10-25 10:48';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
