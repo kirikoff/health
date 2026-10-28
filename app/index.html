@@ -697,7 +697,9 @@ const U = {
       if (TR.sessions[id] || y.date < today || (TR.tomb || {})['s:' + id]) continue;
       TR.sessions[id] = { ...y, mt: now }; r.added++;
     }
-    TR.planBuilt = (TR.plan && TR.plan.mt) || now;
+    // Не раньше now: тренировки, которые обновление само поставило (mt = now), не должны выглядеть
+    // «изменёнными вручную» при следующем обновлении (ошибка до 28.10.2026 — дубли на старых днях)
+    TR.planBuilt = [TR.plan && TR.plan.mt, now].filter(Boolean).sort().at(-1);
     return r;
   }
   const softUpdateMsg = (r) => r.error || [`обновлено ${r.updated}`, `добавлено ${r.added}`, `убрано ${r.removed}`].join(', ') + (r.keptManual ? `; перенесённые или изменённые вручную оставлены как есть: ${r.keptManual}` : '') + '. Отметки и прошлые дни не тронуты.';
@@ -1553,7 +1555,7 @@ const U = {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-10-25 10:48';
+    const BUILD = '2026-10-28 12:26';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
