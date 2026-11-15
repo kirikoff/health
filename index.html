@@ -456,27 +456,107 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
   .nt-ctl .period { width: 100%; }
   .ck-item { font-size: 15px; padding: 9px 2px; }
 }
+
+/* ---------- оболочка: меню из 4 разделов, подразделы, меню «⋯» */
+.topbar { padding-top: 0; gap: 0 18px; }
+.topbar:has(.nav[hidden]) { padding-top: 10px; }
+.brand { margin-right: 0; padding: 10px 0; }
+.nav { flex: 1 1 auto; order: 0; min-width: 0; margin: 0; align-self: stretch; align-items: stretch; gap: 0 20px; }
+.nav a { font-size: 14px; padding: 0; display: flex; align-items: center; min-height: 46px; }
+.nav a[hidden] { display: none; }
+.period { margin: 6px 0; }
+.sync-host { display: flex; }
+.sync-host .sync-chip { flex: none !important; order: 0; padding: 6px 12px; font-weight: 500; }
+.menu-wrap { position: relative; margin: 6px 0; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 230px; padding: 6px; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.menu-item { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  color: var(--ink); text-decoration: none; font: inherit; white-space: nowrap; }
+.menu-item:hover { background: var(--hover); }
+.menu-item:focus-visible, .subnav a:focus-visible, a.tile:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.menu-foot { padding: 6px 12px 4px; border-top: 1px solid var(--border); margin-top: 4px; }
+.subnav { flex: 1 0 100%; order: 20; display: flex; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.subnav::-webkit-scrollbar { display: none; }
+.subnav a { flex: none; padding: 5px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink2); text-decoration: none; font-size: 13px; white-space: nowrap; }
+.subnav a:hover { color: var(--ink); background: var(--hover); }
+.subnav a[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--page); font-weight: 600; }
+@media (max-width: 900px) {
+  .topbar { gap: 0 10px; }
+  .brand { margin-right: auto; }
+  .nav { flex: 1 0 100%; order: 10; border-top: 1px solid var(--border); }
+  .nav a { min-height: 40px; }
+  .topbar.compact .brand, .topbar.compact .period, .topbar.compact .sync-host, .topbar.compact .menu-wrap { display: none; }
+}
+@media print { .subnav, .menu-wrap, .sync-host { display: none !important; } }
+@media (max-width: 640px) { .period { order: 30; margin: 0 0 8px; } }
+
+/* ---------- «Сегодня»: вердикт одной строкой, тренировки дня, плотные плитки */
+.section-head:empty { display: none; }
+#today.section { margin-top: 16px; }
+.rule { padding: 12px 16px; margin-bottom: 12px; border-radius: 14px; box-shadow: none; }
+.rule-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.rule-top .verdict { margin: 0; flex: 1 1 260px; min-width: 0; }
+.verdict-light { width: 30px; height: 30px; font-size: 15px; }
+.verdict-name { font-size: 18px; }
+.td-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.td-chips .chip { white-space: normal; }
+.rule-top > .btn { margin-left: auto; }
+.td-chips .chip.ok { border-color: color-mix(in srgb, var(--good) 45%, var(--border)); color: var(--good-text); }
+.td-chips .chip.no { border-color: color-mix(in srgb, var(--crit) 55%, var(--border)); color: var(--bad-text); }
+.td-chips .chip.na { color: var(--muted); border-style: dashed; }
+.rule-more { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; gap: 14px; }
+.rule-more .hero { box-shadow: none; border-radius: 12px; padding: 12px 14px; }
+.rule-more .hero-value { font-size: 36px; }
+.rule-more .factors { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px 20px; }
+.rule-more .hero-foot { margin-top: 0; }
+.rule-strip { margin-top: 0; }
+.today { gap: 12px; align-items: start; }
+@media (min-width: 901px) { .today { grid-template-columns: minmax(280px, 400px) 1fr; } }
+.td-work { box-shadow: none; }
+.td-sess { border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; margin-top: 8px; }
+.td-sess-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.td-sess-title { font-weight: 600; }
+.td-sess-st { font-size: 12.5px; white-space: nowrap; color: var(--ink2); }
+.td-sess-st.good { color: var(--good-text); } .td-sess-st.crit { color: var(--bad-text); }
+.td-marks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.td-marks .btn.small { padding: 6px 11px; }
+.td-note { margin: 10px 0 0; }
+a.btn { text-decoration: none; color: inherit; display: inline-block; }
+.tiles { gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+.tile { padding: 9px 12px 6px; border-radius: 12px; }
+a.tile { text-decoration: none; color: inherit; cursor: pointer; }
+a.tile:hover { border-color: var(--axis); background: var(--hover); }
+.tile-value { font-size: 24px; }
+.tile-delta { margin-top: 1px; }
+.tile-spark { height: 30px; padding-top: 4px; }
 </style>
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><h1>Здоровье</h1><span id="asof" class="muted small"></span><span id="ver" class="muted small"></span></div>
-  <div class="period" role="radiogroup" aria-label="Период">
+  <div class="brand"><h1>Здоровье</h1><span id="asof" class="muted small"></span></div>
+  <nav class="nav" id="nav" aria-label="Разделы" hidden>
+    <a href="#today" data-g="today">Сегодня</a><a href="#tracker" data-g="train">Тренировки</a><a href="#nutrition" data-g="food">Питание</a><a href="#recovery" data-g="metrics">Показатели</a>
+  </nav>
+  <div class="period" role="radiogroup" aria-label="Период" hidden>
     <button type="button" role="radio" data-p="30">30 дн.</button>
     <button type="button" role="radio" data-p="90">90 дн.</button>
     <button type="button" role="radio" data-p="365">Год</button>
     <button type="button" role="radio" data-p="all">Всё</button>
   </div>
-  <div class="actions">
-    <button type="button" id="btn-garmin-dir" class="btn" hidden>Папка Garmin API</button>
-    <button type="button" id="btn-load" class="btn primary">Загрузить выгрузки</button>
-    <button type="button" id="btn-export" class="btn">Данные для Claude</button>
-    <button type="button" id="btn-theme" class="btn icon" aria-label="Переключить тему">◐</button>
+  <div class="sync-host" data-sync-host></div>
+  <div class="menu-wrap">
+    <button type="button" id="btn-menu" class="btn icon" aria-label="Данные и настройки" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <div id="menu" class="menu" hidden>
+      <button type="button" id="btn-load" class="menu-item">Загрузить выгрузки</button>
+      <button type="button" id="btn-export" class="menu-item">Данные для Claude</button>
+      <button type="button" id="btn-garmin-dir" class="menu-item" hidden>Папка Garmin API</button>
+      <a href="#data" id="menu-data" class="menu-item">Источники данных</a>
+      <button type="button" id="btn-theme" class="menu-item">Тема</button>
+      <div class="menu-foot"><span id="ver" class="muted small"></span></div>
+    </div>
   </div>
   <input type="file" id="file" multiple accept=".zip,.xlsx,.csv,.json" hidden>
-  <nav class="nav" id="nav" aria-label="Разделы" hidden>
-    <a href="#today">Сегодня</a><a href="#tracker">Трекер</a><a href="#nutrition">Питание</a><a href="#cooking">Готовка</a><a href="#recovery">Восстановление</a><a href="#load">Нагрузка</a><a href="#plan">План</a><a href="#cardio">Кардио</a><a href="#body">Тело</a><a href="#bp">Давление</a><a href="#labs">Анализы</a><a href="#data">Источники</a>
-  </nav>
+  <div class="subnav" id="subnav" aria-label="Подразделы" hidden></div>
 </header>
 <div id="status" class="status" role="status" aria-live="polite" hidden></div>
 <main>
@@ -501,10 +581,6 @@ footer.foot { color: var(--muted); font-size: 12px; padding: 24px max(16px, calc
   </section>
   <div id="dash" hidden></div>
 </main>
-<footer class="foot">
-  Каждая новая выгрузка Garmin и Picooc содержит всю историю — просто загрузите свежие файлы, старые данные обновятся.
-  Данные сохраняются в этом браузере; исходные файлы держите в папке raw/.
-</footer>
 <div id="drop" class="drop-overlay" hidden>Отпустите файлы, чтобы загрузить</div>
 <script>
 "use strict";
@@ -2000,6 +2076,13 @@ const Charts = (() => {
   const TABS = ['today', 'tracker', 'nutrition', 'cooking', 'recovery', 'load', 'plan', 'cardio', 'body', 'bp', 'labs', 'data'];
   const NUTR_TABS = ['nutrition', 'cooking'];
   let availTabs = TABS;
+  // Меню из 4 разделов; прежние вкладки стали подразделами, их адреса (#labs и т. д.) не изменились
+  const NAV_GROUPS = { today: ['today'], train: ['tracker', 'plan'], food: ['nutrition', 'cooking'], metrics: ['recovery', 'load', 'cardio', 'body', 'bp', 'labs'] };
+  const TAB_LABEL = { tracker: 'Трекер', plan: 'План', nutrition: 'Меню', cooking: 'Готовка', recovery: 'Восстановление', load: 'Нагрузка', cardio: 'Кардио', body: 'Тело', bp: 'Давление', labs: 'Анализы' };
+  const PERIOD_TABS = ['recovery', 'load', 'cardio', 'body', 'bp', 'plan'];   // где действует выбор периода
+  const navGroupOf = (id) => Object.keys(NAV_GROUPS).find(g => NAV_GROUPS[g].includes(id)) || null;
+  const lastInGroup = {};
+  let hasHealth = false;
   const LS_TAB = 'health-dashboard-tab';
   const tabFromHash = () => { const t = location.hash.slice(1); return TABS.includes(t) ? t : null; };
   state.tab = tabFromHash() || (() => { try { const t = localStorage.getItem(LS_TAB); return TABS.includes(t) ? t : null; } catch (e) { return null; } })() || 'today';
@@ -2064,13 +2147,19 @@ const Charts = (() => {
 
   /* ------------------------------------------------------------ плитки */
   function tile(grid, o) {
-    const t = h('article', 'tile');
+    // o.go — подраздел с графиком показателя: плитка становится ссылкой, подпись уходит в подсказку
+    const t = h(o.go ? 'a' : 'article', 'tile');
+    if (o.go) {
+      t.href = '#' + o.go;
+      t.title = [o.sub, 'Открыть график'].filter(Boolean).join(' · ');
+      t.onclick = (e) => { e.preventDefault(); goTab(o.go, true); };
+    }
     t.appendChild(h('div', 'tile-label', o.label));
     const vrow = h('div', 'tile-value-row');
     vrow.appendChild(h('span', 'tile-value', o.value));
     if (o.unit) vrow.appendChild(h('span', 'tile-unit', o.unit));
     t.appendChild(vrow);
-    if (o.sub) t.appendChild(h('div', 'tile-sub', o.sub));
+    if (o.sub && !o.go) t.appendChild(h('div', 'tile-sub', o.sub));
     if (o.delta) {
       const d = h('div', 'tile-delta ' + o.delta.tone);
       d.appendChild(h('span', 'arrow', o.delta.arrow));
@@ -2082,17 +2171,18 @@ const Charts = (() => {
     grid.appendChild(t);
     if (o.spark && o.spark.length > 1) pushDraw(() => Charts.spark(sp, o.spark));
   }
+  let deltaLab = null;   // '' — плитки «Сегодня»: всегда 30 дней, период в подписи не повторяется
   // Отклонение последнего значения от среднего за период; dir: +1 — рост хорошо, −1 — рост плохо, 0 — нейтрально
   function deltaVs(v, arr, dir, digits = 0) {
     const m = mean(arr);
     if (v == null || m == null || arr.length < 3) return null;
     const diff = v - m;
     const eps = digits ? 0.05 : 0.5;
-    if (Math.abs(diff) < eps) return { tone: 'neutral', arrow: '•', text: `на уровне среднего за ${periodLabel()}` };
+    if (Math.abs(diff) < eps) return { tone: 'neutral', arrow: '•', text: `на уровне среднего${deltaLab === '' ? '' : ' за ' + periodLabel()}` };
     const up = diff > 0;
     const tone = dir === 0 ? 'neutral' : (up === (dir > 0) ? 'good' : 'bad');
     const n = digits ? N1.format(Math.abs(diff)) : N0.format(Math.abs(diff));
-    return { tone, arrow: up ? '▲' : '▼', text: `${n} к среднему за ${periodLabel()}` };
+    return { tone, arrow: up ? '▲' : '▼', text: `${n} к среднему${deltaLab === '' ? '' : ' за ' + periodLabel()}` };
   }
 
   /* ------------------------------------------------------------ отрисовка */
@@ -2108,8 +2198,9 @@ const Charts = (() => {
     // без данных здоровья (например, у второго человека): трекер, питание и аккаунт
     const lite = [...(hasTracker() ? ['tracker'] : []), ...(hasNutrition() ? NUTR_TABS : [])];
     availTabs = X.hasAny ? TABS : (lite.length ? [...lite, ...(Sync.enabled ? ['data'] : [])] : []);
-    document.querySelector('.topbar .period').hidden = !X.hasAny;   // период — только для разделов здоровья
-    document.querySelectorAll('#nav a').forEach(a => { a.hidden = !availTabs.includes(a.getAttribute('href').slice(1)); });
+    hasHealth = X.hasAny;
+    document.querySelectorAll('#nav a').forEach(a => { a.hidden = !NAV_GROUPS[a.dataset.g].some(t => availTabs.includes(t)); });
+    const md = document.getElementById('menu-data'); md.hidden = !availTabs.includes('data'); md.textContent = X.hasAny ? 'Источники данных' : 'Аккаунт';
     if (!availTabs.length) { emptyBox.hidden = false; dash.hidden = true; document.getElementById('nav').hidden = true; return; }
     emptyBox.hidden = true; dash.hidden = false; document.getElementById('nav').hidden = false;
     if (!X.hasAny) { if (hasTracker()) renderTracker(X); renderNutrition(); renderCooking(); if (Sync.enabled) renderData(X); showTab(state.tab); return; }
@@ -2121,7 +2212,7 @@ const Charts = (() => {
     const x0 = state.period === 'all' ? null : X.start;
     const x1 = X.asOf;
 
-    renderToday(X, dP, bodyP, x0, x1);
+    renderToday(X);
     renderTracker(X);
     renderNutrition();
     renderCooking();
@@ -2143,10 +2234,20 @@ const Charts = (() => {
     state.tab = id;
     try { localStorage.setItem(LS_TAB, id); } catch (e) { /* нет хранилища */ }
     for (const sec of dash.querySelectorAll(':scope > section')) sec.hidden = sec.id !== id;
+    const grp = navGroupOf(id);
+    if (grp) lastInGroup[grp] = id;
     document.querySelectorAll('#nav a').forEach(a => {
-      if (a.getAttribute('href') === '#' + id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      const g = a.dataset.g, tabs = NAV_GROUPS[g].filter(t => availTabs.includes(t));
+      a.setAttribute('href', '#' + (tabs.includes(lastInGroup[g]) ? lastInGroup[g] : tabs[0] || NAV_GROUPS[g][0]));
+      if (g === grp) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    const cur = document.querySelector('#nav a[aria-current]');
+    const sub = document.getElementById('subnav');
+    const subTabs = grp ? NAV_GROUPS[grp].filter(t => availTabs.includes(t)) : [];
+    sub.replaceChildren();
+    sub.hidden = subTabs.length < 2;
+    for (const t of subTabs) { const a = h('a', null, TAB_LABEL[t] || t); a.href = '#' + t; if (t === id) a.setAttribute('aria-current', 'page'); sub.appendChild(a); }
+    document.querySelector('.topbar .period').hidden = !(hasHealth && PERIOD_TABS.includes(id));   // период — только там, где он действует
+    const cur = sub.querySelector('a[aria-current]');
     if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     Charts.tip.hide();
     if (!drawn.has(id)) { drawn.add(id); redraws.filter(r => r.sec === id).forEach(r => r.fn()); }
@@ -2157,19 +2258,114 @@ const Charts = (() => {
     window.scrollTo(0, 0);
   }
 
-  function renderToday(X, dP, bodyP, x0, x1) {
+  let todayWhy = false;    // раскрыт ли блок «Почему и история»
+  let todayWork = null;    // перерисовка карточки «Тренировки сегодня» после отметки
+  const MARK_SHORT = { done: 'Сделал', replaced: 'Зона 2', rest: 'Отдых', skipped: 'Пропуск' };
+  // «Сегодня»: всегда последние 30 дней, от выбранного периода не зависит
+  function renderToday(X) {
     const sec = h('section', 'section');
     sec.id = 'today';
     curSec = 'today';
-    const head = h('div', 'section-head');
-    head.appendChild(h('h2', null, 'Сегодня'));
-    head.appendChild(h('p', 'section-note', `Последние значения; стрелки — отклонение от среднего за ${periodLabel()}`));
-    sec.appendChild(head);
-    renderRule(sec, X, dP, x0, x1);
+    dash.appendChild(sec);
+    const t30 = X.asOf != null ? X.asOf - 29 * DAY : 0;
+    const d30 = X.daily.filter(r => r.t >= t30);
+    renderRule(sec, X, t30);
     const wrap = h('div', 'today');
     sec.appendChild(wrap);
-    dash.appendChild(sec);
+    const work = h('article', 'card td-work');
+    wrap.appendChild(work);
+    todayWork = () => drawTodayWork(work, X);
+    todayWork();
+    const tiles = h('div', 'tiles');
+    wrap.appendChild(tiles);
+    deltaLab = '';
+    const sub = (row, text) => (row && X.asOf - row.t > DAY ? `${text}${text ? ' · ' : ''}на ${fmtDate(row.t)}` : text);
 
+    const hrv = lastOf(X.daily, 'hrv');
+    tile(tiles, { go: 'recovery', label: 'HRV ночью', value: f0(hrv?.hrv), unit: 'мс',
+      sub: sub(hrv, hrv ? `${RU.hrv[hrv.hrvStatus] || ''}${hrv.hrvLow ? `, база ${f0(hrv.hrvLow)}–${f0(hrv.hrvHigh)}` : ''}` : ''),
+      delta: deltaVs(hrv?.hrv, d30.filter(d => d.hrv != null).map(d => d.hrv), +1), spark: pts(d30, 'hrv') });
+    const sl = lastOf(X.daily, 'sleepScore');
+    tile(tiles, { go: 'recovery', label: 'Оценка сна', value: f0(sl?.sleepScore), unit: 'из 100', sub: sub(sl, sl ? hm(sl.sleepMin) : ''),
+      delta: deltaVs(sl?.sleepScore, d30.filter(d => d.sleepScore != null).map(d => d.sleepScore), +1), spark: pts(d30, 'sleepScore') });
+    const rh = lastOf(X.daily, 'rhr');
+    tile(tiles, { go: 'cardio', label: 'Пульс покоя', value: f0(rh?.rhr), unit: 'уд/мин', sub: sub(rh, ''),
+      delta: deltaVs(rh?.rhr, d30.filter(d => d.rhr != null).map(d => d.rhr), -1), spark: pts(d30, 'rhr') });
+    const bb = lastOf(X.daily, 'bbMax');
+    tile(tiles, { go: 'recovery', label: 'Body Battery, макс.', value: f0(bb?.bbMax), unit: 'из 100', sub: sub(bb, bb && bb.bbMin != null ? `минимум ${f0(bb.bbMin)}` : ''),
+      delta: deltaVs(bb?.bbMax, d30.filter(d => d.bbMax != null).map(d => d.bbMax), +1), spark: pts(d30, 'bbMax') });
+    const st = lastOf(X.daily, 'stress');
+    tile(tiles, { go: 'recovery', label: 'Стресс за день', value: f0(st?.stress), unit: 'из 100', sub: sub(st, ''),
+      delta: deltaVs(st?.stress, d30.filter(d => d.stress != null).map(d => d.stress), -1), spark: pts(d30, 'stress') });
+    // Нагрузка — собственный расчёт (enrichDaily): нагрузку Garmin API не отдаёт
+    const ld = lastOf(X.daily, 'loadAcuteCalc');
+    tile(tiles, { go: 'load', label: 'Острая нагрузка', value: f0(ld?.loadAcuteCalc), unit: '',
+      sub: sub(ld, ld ? `хроническая ${f0(ld.loadChronicCalc)}, ACWR ${N2.format(ld.acwrCalc)}` : ''),
+      delta: deltaVs(ld?.loadAcuteCalc, d30.filter(d => d.loadAcuteCalc != null).map(d => d.loadAcuteCalc), 0), spark: pts(d30, 'loadAcuteCalc') });
+    const w = X.body.at(-1);
+    const wd = X.bodyDay.at(-1);
+    const wdP = X.bodyDay.filter(d => d.t >= t30 && d.weightMA != null);
+    tile(tiles, { go: 'body', label: 'Вес, 7 дн.', value: wd ? f1(wd.weightMA) : '—', unit: 'кг',
+      sub: w ? `последнее ${f1(w.weight)} кг, жир ${f1(w.fat)}% · ${fmtDate(w.t)}` : 'нет данных',
+      delta: deltaVs(wd?.weightMA, wdP.map(d => d.weightMA), 0, 1), spark: wdP.map(d => [d.t, d.weightMA]) });
+    const vo = X.daily.filter(d => d.vo2 != null);
+    const vl = vo.at(-1), vprev = vo.at(-2);
+    let vdelta = null;
+    if (vl && vprev && vl.vo2 !== vprev.vo2) {
+      const up = vl.vo2 > vprev.vo2;
+      vdelta = { tone: up ? 'good' : 'bad', arrow: up ? '▲' : '▼', text: `${f1(Math.abs(vl.vo2 - vprev.vo2))} к предыдущему измерению` };
+    }
+    tile(tiles, { go: 'cardio', label: 'VO2max', value: f0(vl?.vo2), unit: 'мл/кг/мин', sub: vl ? `измерено ${fmtDate(vl.t)}` : 'нет измерений',
+      delta: vdelta, spark: vo.map(d => [d.t, d.vo2]) });
+    deltaLab = null;
+    sec.appendChild(h('p', 'section-note td-note', 'Стрелки — отклонение от среднего за 30 дн. Плитка открывает график показателя.'));
+  }
+
+  // Тренировки дня из трекера: отметка прямо на «Сегодня», пишет в те же данные, что и вкладка «Трекер»
+  function drawTodayWork(host, X) {
+    host.replaceChildren();
+    const t = todayMs(), date = iso(t), has = hasTracker();
+    const hd = h('header', 'card-head');
+    const tt = h('div', 'card-titles');
+    tt.appendChild(h('h3', null, 'Тренировки сегодня'));
+    const gd = has ? garminDay(X, date) : null;
+    const wk = has ? (PLAN.weeks || [])[weekOf(date)] : null;
+    const bits = [fmtDate(t)];
+    if (gd && gd.steps != null) bits.push(`шаги ${N0.format(gd.steps)}${wk && wk.steps ? ' из ' + N0.format(wk.steps) : ''}`);
+    tt.appendChild(h('p', 'card-sub', bits.join(' · ')));
+    hd.appendChild(tt);
+    if (has) { const all = h('a', 'btn ghost small', 'Вся неделя'); all.href = '#tracker'; all.onclick = (e) => { e.preventDefault(); goTab('tracker', true); }; hd.appendChild(all); }
+    host.appendChild(hd);
+    if (!has) { host.appendChild(h('p', 'card-sub', 'План тренировок не загружен.')); return; }
+    const list = Object.values(TR.sessions).filter(q => q.date === date).sort((p1, p2) => (p1.slot === p2.slot ? 0 : p1.slot === 'am' ? -1 : 1));
+    if (!list.length) { host.appendChild(h('p', 'card-sub', 'Сегодня тренировок по плану нет.')); return; }
+    for (const q of list) {
+      const l = TR.log[q.id];
+      const row = h('div', 'td-sess');
+      const top = h('div', 'td-sess-top');
+      const nm = h('div');
+      nm.appendChild(h('div', 'td-sess-title', q.title));
+      nm.appendChild(h('div', 'card-sub', [q.time, q.dur ? `${q.dur} мин` : '', q.optional ? 'по желанию' : ''].filter(Boolean).join(' · ')));
+      top.appendChild(nm);
+      const stx = l ? (l.joker ? 'Закрыто джокером' : (ST[l.st] || {}).label || '') + (l.auto ? ' · Garmin' : '') : 'Не отмечено';
+      top.appendChild(h('div', 'td-sess-st ' + (l && !l.joker && ST[l.st] ? ST[l.st].tone : 'none'), stx));
+      row.appendChild(top);
+      const mk = h('div', 'td-marks');
+      for (const [code, d] of Object.entries(ST)) {
+        if (code === 'replaced' && (q.kind === 'zone2' || q.kind === 'mobility')) continue;
+        const b = h('button', 'btn small tr-mark ' + d.tone, MARK_SHORT[code] || d.label); b.type = 'button';
+        b.title = d.label;
+        b.setAttribute('aria-pressed', String(!!l && l.st === code && !l.joker));
+        b.onclick = () => { const bf = earnedSet(); const prev = TR.log[q.id] || {}; TR.log[q.id] = { ...prev, st: code, joker: false, auto: false, at: new Date().toISOString(), note: prev.note || '' }; afterChange(bf); };
+        mk.appendChild(b);
+      }
+      row.appendChild(mk);
+      host.appendChild(row);
+    }
+  }
+
+  // Готовность Garmin с факторами — внутри «Почему и история»
+  function garminHero(X) {
     // Главная цифра — готовность к тренировке
     const r = lastOf(X.daily, 'readiness');
     const hero = h('article', 'hero');
@@ -2213,117 +2409,67 @@ const Charts = (() => {
     } else {
       hero.appendChild(h('div', 'hero-sub', 'Нет данных Garmin'));
     }
-    wrap.appendChild(hero);
-
-    const tiles = h('div', 'tiles');
-    wrap.appendChild(tiles);
-    const sub = (row, text) => (row && X.asOf - row.t > DAY ? `${text}${text ? ' · ' : ''}на ${fmtDate(row.t)}` : text);
-
-    const hrv = lastOf(X.daily, 'hrv');
-    tile(tiles, { label: 'HRV ночью', value: f0(hrv?.hrv), unit: 'мс',
-      sub: sub(hrv, hrv ? `${RU.hrv[hrv.hrvStatus] || ''}${hrv.hrvLow ? `, база ${f0(hrv.hrvLow)}–${f0(hrv.hrvHigh)}` : ''}` : ''),
-      delta: deltaVs(hrv?.hrv, dP.filter(d => d.hrv != null).map(d => d.hrv), +1), spark: pts(dP, 'hrv') });
-    const sl = lastOf(X.daily, 'sleepScore');
-    tile(tiles, { label: 'Оценка сна', value: f0(sl?.sleepScore), unit: 'из 100', sub: sub(sl, sl ? hm(sl.sleepMin) : ''),
-      delta: deltaVs(sl?.sleepScore, dP.filter(d => d.sleepScore != null).map(d => d.sleepScore), +1), spark: pts(dP, 'sleepScore') });
-    const rh = lastOf(X.daily, 'rhr');
-    tile(tiles, { label: 'Пульс покоя', value: f0(rh?.rhr), unit: 'уд/мин', sub: sub(rh, ''),
-      delta: deltaVs(rh?.rhr, dP.filter(d => d.rhr != null).map(d => d.rhr), -1), spark: pts(dP, 'rhr') });
-    const bb = lastOf(X.daily, 'bbMax');
-    tile(tiles, { label: 'Body Battery, максимум', value: f0(bb?.bbMax), unit: 'из 100', sub: sub(bb, bb && bb.bbMin != null ? `минимум ${f0(bb.bbMin)}` : ''),
-      delta: deltaVs(bb?.bbMax, dP.filter(d => d.bbMax != null).map(d => d.bbMax), +1), spark: pts(dP, 'bbMax') });
-    const st = lastOf(X.daily, 'stress');
-    tile(tiles, { label: 'Стресс, среднее за день', value: f0(st?.stress), unit: 'из 100', sub: sub(st, ''),
-      delta: deltaVs(st?.stress, dP.filter(d => d.stress != null).map(d => d.stress), -1), spark: pts(dP, 'stress') });
-    // Нагрузка — собственный расчёт (enrichDaily): нагрузку Garmin API не отдаёт
-    const ld = lastOf(X.daily, 'loadAcuteCalc');
-    tile(tiles, { label: 'Острая нагрузка (расчёт)', value: f0(ld?.loadAcuteCalc), unit: '',
-      sub: sub(ld, ld ? `хроническая ${f0(ld.loadChronicCalc)}, ACWR ${N2.format(ld.acwrCalc)}` : ''),
-      delta: deltaVs(ld?.loadAcuteCalc, dP.filter(d => d.loadAcuteCalc != null).map(d => d.loadAcuteCalc), 0), spark: pts(dP, 'loadAcuteCalc') });
-    const w = X.body.at(-1);
-    const wd = X.bodyDay.at(-1);
-    const wdP = X.bodyDay.filter(d => X.inP(d.t) && d.weightMA != null);
-    tile(tiles, { label: 'Вес, среднее за 7 дн. (Picooc)', value: wd ? f1(wd.weightMA) : '—', unit: 'кг',
-      sub: w ? `последнее ${f1(w.weight)} кг, жир ${f1(w.fat)}% · ${fmtDate(w.t)}` : 'нет данных',
-      delta: deltaVs(wd?.weightMA, wdP.map(d => d.weightMA), 0, 1), spark: wdP.map(d => [d.t, d.weightMA]) });
-    const vo = X.daily.filter(d => d.vo2 != null);
-    const vl = vo.at(-1), vprev = vo.at(-2);
-    let vdelta = null;
-    if (vl && vprev && vl.vo2 !== vprev.vo2) {
-      const up = vl.vo2 > vprev.vo2;
-      vdelta = { tone: up ? 'good' : 'bad', arrow: up ? '▲' : '▼', text: `${f1(Math.abs(vl.vo2 - vprev.vo2))} к предыдущему измерению` };
-    }
-    tile(tiles, { label: 'VO2max', value: f0(vl?.vo2), unit: 'мл/кг/мин', sub: vl ? `измерено ${fmtDate(vl.t)}` : 'нет измерений',
-      delta: vdelta, spark: vo.map(d => [d.t, d.vo2]) });
+    return hero;
   }
 
-  // Светофор готовности по правилу плана: HRV, Body Battery, сон, ACWR — на пересечении, а не по одному показателю
-  function renderRule(sec, X, dP, x0, x1) {
+  // Светофор готовности по правилу плана: вердикт одной строкой, условия — чипами; правило, лента и оценка Garmin раскрываются
+  function renderRule(sec, X, t30) {
     const all = verdicts(X.daily);
     const box = h('article', 'rule');
     sec.appendChild(box);
     const top = h('div', 'rule-top');
     box.appendChild(top);
-    const left = h('div');
-    left.appendChild(h('div', 'tile-label', 'Готовность по правилу плана'));
     const v = all.at(-1);
-    if (!v) {
-      left.appendChild(h('div', 'hero-sub', 'Нет данных Garmin'));
-      top.appendChild(left);
-      return;
-    }
+    if (!v) { top.appendChild(h('div', 'hero-sub', 'Нет данных Garmin')); return; }
     const vr = h('div', 'verdict');
     const light = h('span', 'verdict-light ' + v.tone, { good: '✓', warn: '!', crit: '✕' }[v.tone]);
     light.setAttribute('aria-hidden', 'true');
     vr.appendChild(light);
     const vt = h('div');
     vt.appendChild(h('div', 'verdict-name', v.label));
-    vt.appendChild(h('div', 'verdict-advice', v.advice));
+    vt.appendChild(h('div', 'verdict-advice', `${v.advice} · ${fmtDate(v.t)}${X.asOf - v.t > 0 ? ' — последний день с данными' : ''}${v.partial ? ` · нет данных по ${v.missing} из 4 условий` : ''}`));
     vr.appendChild(vt);
-    left.appendChild(vr);
-    left.appendChild(h('div', 'hero-sub', `${fmtDate(v.t)}${X.asOf - v.t > 0 ? ' — последний день с данными' : ''}${v.partial ? ` · нет данных по ${v.missing} из 4 условий, вывод неполный` : ''}`));
-    top.appendChild(left);
-
-    const tbl = h('table', 'conds');
-    const tb = h('tbody');
+    top.appendChild(vr);
+    const chips = h('div', 'td-chips');
     for (const c of v.conds) {
-      const tr = h('tr');
-      const mk = c.ok === true ? ['ok', '✓'] : c.ok === false ? ['no', '✕'] : ['na', '—'];
-      tr.appendChild(h('td', 'mark ' + mk[0], mk[1]));
-      tr.appendChild(h('td', null, c.label));
-      tr.appendChild(h('td', 'num strong', c.value ?? 'нет данных'));
-      tr.appendChild(h('td', 'num muted', c.need));
-      tb.appendChild(tr);
+      const ch = h('span', 'chip small ' + (c.ok === true ? 'ok' : c.ok === false ? 'no' : 'na'), `${c.ok === true ? '✓' : c.ok === false ? '✕' : '—'} ${c.label}: ${c.value ?? 'нет данных'}`);
+      ch.title = `Нужно: ${c.need}`;
+      chips.appendChild(ch);
     }
-    tbl.appendChild(tb);
-    const right = h('div');
-    right.appendChild(tbl);
-    right.appendChild(h('div', 'hero-foot', 'Зелёный — все условия выполнены; жёлтый — одно не выполнено; красный — два и больше или HRV ниже базового диапазона. Правило из training/plan.md. После длинного сквоша низкая готовность при нормальном HRV ожидаема.'));
-    top.appendChild(right);
+    top.appendChild(chips);
+    const btn = h('button', 'btn', 'Почему и история'); btn.type = 'button';
+    top.appendChild(btn);
+    const more = h('div', 'rule-more');
+    box.appendChild(more);
+    more.appendChild(h('div', 'hero-foot', 'Зелёный — все условия выполнены; жёлтый — одно не выполнено; красный — два и больше или HRV ниже базового диапазона. Правило из training/plan.md. После длинного сквоша низкая готовность при нормальном HRV ожидаема.'));
 
-    // лента за период
-    const vP = all.filter(q => X.inP(q.t));
+    // лента за 30 дней
+    const vP = all.filter(q => q.t >= t30);
     const cnt = { good: 0, warn: 0, crit: 0 };
     vP.forEach(q => cnt[q.tone]++);
-    const nDays = x0 != null ? Math.round((x1 - x0) / DAY) + 1 : (vP.length ? Math.round((vP.at(-1).t - vP[0].t) / DAY) + 1 : 0);
     const st = h('div', 'rule-strip');
     const counts = h('div', 'counts');
     const addCount = (tone, text) => { const sp = h('span'); sp.appendChild(h('span', 'chip-dot ' + tone)); sp.appendChild(document.createTextNode(text)); counts.appendChild(sp); };
     addCount('good', `Зелёный ${cnt.good}`);
     addCount('warn', `Жёлтый ${cnt.warn}`);
     addCount('crit', `Красный ${cnt.crit}`);
-    addCount('nodata', `нет данных ${Math.max(0, nDays - vP.length)}`);
-    counts.appendChild(h('span', 'muted', `· бледные — неполные данные · за ${periodLabel()}`));
+    addCount('nodata', `нет данных ${Math.max(0, 30 - vP.length)}`);
+    counts.appendChild(h('span', 'muted', '· бледные — неполные данные · за 30 дн.'));
     st.appendChild(counts);
     const host = h('div', 'chart');
     st.appendChild(host);
-    box.appendChild(st);
+    more.appendChild(st);
     const items = vP.map(q => ({
       t: q.t, tone: q.tone, faint: q.partial,
       title: `${fmtDate(q.t)} · ${q.label}`,
       rows: q.conds.map(c => ({ value: c.value ?? '—', label: `${c.label} ${c.ok === true ? '✓' : c.ok === false ? '✕' : '(нет данных)'}` })),
     }));
-    pushDraw(() => Charts.strip(host, items, x0 ?? (vP[0] && vP[0].t), x1, { aria: 'Светофор готовности по дням' }));
+    more.appendChild(garminHero(X));
+    const drawStrip = () => { if (!more.hidden) Charts.strip(host, items, t30, X.asOf, { aria: 'Светофор готовности по дням' }); };
+    const apply = () => { more.hidden = !todayWhy; btn.textContent = todayWhy ? 'Свернуть' : 'Почему и история'; btn.setAttribute('aria-expanded', String(todayWhy)); drawStrip(); };
+    btn.onclick = () => { todayWhy = !todayWhy; apply(); };
+    apply();
+    pushDraw(drawStrip);
   }
 
   function renderRecovery(dP, x0, x1) {
@@ -3746,6 +3892,7 @@ const Charts = (() => {
     const now = badges(X, S, vBy);
     for (const b of now) if (b.earned && before && !before.has(b.id)) toast(`Новое достижение: ${b.name}`, b.how);
     trDraw();
+    if (todayWork) todayWork();
   }
   const earnedSet = () => {
     const X = trX;
@@ -5026,7 +5173,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-11-15 08:01';
+    const BUILD = '2026-11-15 08:16';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
@@ -5187,7 +5334,7 @@ const Charts = (() => {
     try { theme = localStorage.getItem(LS_THEME); } catch (e) { /* нет хранилища */ }
     applyTheme(theme);
     const tb = document.getElementById('btn-theme');
-    const label = () => { tb.title = { light: 'Тема: светлая', dark: 'Тема: тёмная' }[theme] || 'Тема: как в системе'; };
+    const label = () => { tb.textContent = { light: 'Тема: светлая', dark: 'Тема: тёмная' }[theme] || 'Тема: как в системе'; };
     label();
     tb.onclick = () => {
       theme = theme === 'light' ? 'dark' : theme === 'dark' ? null : 'light';
@@ -5218,12 +5365,21 @@ const Charts = (() => {
     }
     let rt;
     window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { drawn.clear(); showTab(state.tab); }, 150); });
-    document.getElementById('nav').addEventListener('click', (e) => {
+    const menu = document.getElementById('menu'), mbtn = document.getElementById('btn-menu');
+    const setMenu = (open) => { menu.hidden = !open; mbtn.setAttribute('aria-expanded', String(open)); };
+    mbtn.onclick = (e) => { e.stopPropagation(); setMenu(menu.hidden); };
+    document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('#btn-theme')) setMenu(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); mbtn.focus(); } });
+    document.querySelector('.topbar').addEventListener('click', (e) => {
       const a = e.target.closest('a[href^="#"]');
       if (!a) return;
       e.preventDefault();
       goTab(a.getAttribute('href').slice(1), true);
     });
+    // узкий экран: значок синхронизации с коротким текстом
+    const mq = window.matchMedia('(max-width: 900px)'), sh = document.querySelector('[data-sync-host]');
+    const fit = () => sh.toggleAttribute('data-compact', mq.matches);
+    fit(); mq.addEventListener('change', fit);
     window.addEventListener('popstate', () => { showTab(tabFromHash() || 'today'); });
   }
 
