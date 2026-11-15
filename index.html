@@ -753,6 +753,7 @@ const Parsers = (() => {
     vo2:   /DI-Connect-Metrics\/MetricsMaxMetData_[^/]*\.json$/,
     acts:  /DI-Connect-Fitness\/[^/]*_summarizedActivities\.json$/,
     fage:  /DI-Connect-Wellness\/[^/]*_fitnessAgeData\.json$/,
+    endur: /DI-Connect-Metrics\/EnduranceScore_[^/]*\.json$/,
   };
 
   function isGarmin(zip) {
@@ -789,6 +790,10 @@ const Parsers = (() => {
       o.imVig = U.num(r.vigorousIntensityMinutes);
       o.spo2 = U.pos(r.averageSpo2Value);
       o.resp = U.pos(r.respiration && r.respiration.avgWakingRespirationValue);
+      // Расход энергии за сутки, ккал: всего = базовый обмен + активные
+      o.kcalTotal = U.pos(r.totalKilocalories);
+      o.kcalActive = U.num(r.activeKilocalories);
+      o.kcalBmr = U.pos(r.bmrKilocalories);
       const tot = ((r.allDayStress && r.allDayStress.aggregatorList) || []).find(a => a.type === 'TOTAL');
       if (tot) { o.stress = U.pos(tot.averageStressLevel); o.stressMax = U.pos(tot.maxStressLevel); }
       const bb = r.bodyBattery;
@@ -886,6 +891,19 @@ const Parsers = (() => {
       o.fitAge = U.pos(r.currentBioAge);
       o.chronoAge = U.pos(r.chronologicalAge);
     }
+    // Оценка выносливости (Endurance Score): последнее значение за день; вклад видов спорта — коды Garmin как есть
+    const endurBy = {};
+    for (const r of await load('endur')) {
+      if (r.calendarDate == null || r.overallScore == null) continue;
+      const d = typeof r.calendarDate === 'number' ? U.msToDate(r.calendarDate) : String(r.calendarDate).slice(0, 10);
+      if (!endurBy[d] || (r.timestamp || 0) > (endurBy[d].timestamp || 0)) endurBy[d] = r;
+    }
+    for (const [d, r] of Object.entries(endurBy)) {
+      const o = day(d);
+      o.endur = U.pos(r.overallScore);
+      o.endurBy = (r.enduranceScoreContributor || []).filter(c => typeof c.contribution === 'number')
+        .map(c => [c.sport != null ? `s${c.sport}${c.subSport ? '.' + c.subSport : ''}` : `g${c.group}`, Math.round(c.contribution * 10) / 10]);
+    }
     // Активности. Единицы экспорта: длительность — мс, дистанция — см, скорость — см/мс
     const activities = {};
     for (const bundle of await load('acts')) {
@@ -959,6 +977,8 @@ const Parsers = (() => {
       o.bbCharged = U.num(bb.chargedValue);
       o.bbDrained = U.num(bb.drainedValue);
       o.spo2 = U.pos((r.pulseOx || {}).avgValue);
+      const cal = r.calories || {};
+      if (U.pos(cal.burnedTotal) != null) { o.kcalTotal = U.pos(cal.burnedTotal); o.kcalActive = U.num(cal.burnedActive); o.kcalBmr = U.pos(cal.burnedResting); }
     }
     // Body Battery из отдельного отчёта — если в суточной сводке его нет
     for (const r of obj.bb || []) {
@@ -2109,7 +2129,7 @@ const Charts = (() => {
     renderLoad(dP, actsP, x0, x1, X);
     renderPlan(X, dP, x0, x1);
     renderCardio(dP, X, x0, x1);
-    renderBody(bodyP, X, x0, x1);
+    renderBody(bodyP, X, x0, x1, dP);
     renderBp(bpP, X, x0, x1);
     renderLabs(X);
     renderData(X);
@@ -2639,6 +2659,10 @@ const Charts = (() => {
       }, null, { wide: true });
   }
 
+  // Вид спорта во вкладе в выносливость. Коды sport/subSport — по справочнику FIT; неизвестные и группы показываются кодом
+  const ENDUR_SPORT = { 's1': 'бег', 's2': 'велосипед', 's5': 'плавание', 's11': 'ходьба', 's17': 'походы', 's64': 'ракетки', 's64.94': 'сквош' };
+  const endurName = (k) => ENDUR_SPORT[k] || ENDUR_SPORT[k.split('.')[0]] || (k[0] === 'g' ? `группа ${k.slice(1)}` : `вид ${k.slice(1)}`);
+
   function renderCardio(dP, X, x0, x1) {
     const g = section('cardio', 'Кардио', 'Пульс покоя, VO2max и фитнес-возраст — база для периодизации.');
     const rS = [{ label: 'Пульс покоя', color: 'var(--s1)', pts: pts(dP, 'rhr'), fmt: f0 }];
@@ -2653,13 +2677,26 @@ const Charts = (() => {
         emptyText: lastV ? `За период измерений нет. Последнее: ${f0(lastV.vo2)} (${fmtDate(lastV.t)})` : 'Нет измерений' }),
       lineTable(vS));
 
+    // Выносливость: вся история, как VO2max — оценка меняется медленно
+    const eAll = X.daily.filter(d => d.endur != null);
+    const eS = [{ label: 'Выносливость', color: 'var(--s1)', pts: eAll.map(d => [d.t, d.endur]), fmt: f0, gapMs: 8 * DAY }];
+    const lastE = eAll.at(-1);
+    const eCard = card(g, 'Выносливость, баллы', lastE ? `Оценка Garmin (Endurance Score). Вся история, независимо от периода · сейчас ${f0(lastE.endur)} (${fmtDate(lastE.t)})` : 'Оценка Garmin (Endurance Score)',
+      (el) => Charts.line(el, { series: eS, fmt: f0, yZero: false, emptyText: 'Нет данных — загрузите полный экспорт Garmin (ZIP): через API оценка не приходит',
+        extra: (t) => { const d = eAll.find(q => q.t === t); return d && d.endurBy ? d.endurBy.slice().sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => ({ value: `${f0(v)}%`, label: endurName(k) })) : []; } }),
+      lineTable(eS));
+    if (lastE && lastE.endurBy && lastE.endurBy.length) {
+      eCard.card.querySelector('.card-sub').after(h('p', 'card-sub', 'Вклад на ' + fmtDate(lastE.t) + ': '
+        + lastE.endurBy.slice().sort((a, b) => b[1] - a[1]).map(([k, v]) => `${endurName(k)} ${f0(v)}%`).join(' · ')));
+    }
+
     const chrono = lastOf(X.daily, 'chronoAge');
     const fS = [{ label: 'Фитнес-возраст', color: 'var(--s1)', pts: pts(dP, 'fitAge'), fmt: f1, gapMs: 8 * DAY }];
     card(g, 'Фитнес-возраст, лет', chrono ? `Оценка Garmin; паспортный возраст — ${f0(chrono.chronoAge)}` : 'Оценка Garmin',
       (el) => Charts.line(el, { series: fS, x0, x1, fmt: f1 }), lineTable(fS));
   }
 
-  function renderBody(bodyP, X, x0, x1) {
+  function renderBody(bodyP, X, x0, x1, dP = []) {
     const g = section('body', 'Тело', 'Весы Picooc. Несколько измерений за день показаны отдельными точками.');
     const noData = X.body.length ? `За период измерений нет. Последнее: ${fmtDate(X.body.at(-1).t)}` : 'Нет данных Picooc — загрузите выгрузку весов';
     const chg = (key) => (bodyP.length > 1 ? bodyP.at(-1)[key] - bodyP[0][key] : null);
@@ -2693,6 +2730,31 @@ const Charts = (() => {
     withMA('fat', 'fatMA', 'Жир', '%');
     one('muscle', 'Мышцы', '%');
     one('visceral', 'Висцеральный жир', 'индекс', 0);
+    renderEnergy(g, dP);
+  }
+
+  // Расход энергии по Garmin: базовый обмен + активные калории. Активные — оценка часов по пульсу, не измерение
+  function renderEnergy(g, dP) {
+    let rows = dP.filter(d => d.kcalTotal != null && d.kcalBmr != null);
+    // последний день в данных обычно неполный (сутки ещё идут): базовый обмен набран не целиком
+    if (rows.length > 1 && rows.at(-1).kcalBmr < 0.95 * rows.at(-2).kcalBmr) rows = rows.slice(0, -1);
+    const act = (r) => (r.kcalActive != null ? r.kcalActive : Math.max(0, r.kcalTotal - r.kcalBmr));
+    const cats = [{ key: 'bmr', label: 'Базовый обмен', color: 'var(--s1)' }, { key: 'act', label: 'Активные', color: 'var(--s2)' }];
+    const weekly = rows.length > 60;
+    const buckets = weekly ? weekBuckets(rows, (rs) => ({ bmr: mean(rs.map(r => r.kcalBmr)), act: mean(rs.map(act)) }))
+      : rows.map(r => ({ label: fmtDate(r.t).slice(0, 5), title: fmtDate(r.t), vals: { bmr: r.kcalBmr, act: act(r) } }));
+    const avg = rows.length ? mean(rows.map(r => r.kcalTotal)) : null;
+    const avgAct = rows.length ? mean(rows.map(act)) : null;
+    // цель меню — первый человек из nutrition.json (без добавки в дни сквоша)
+    let goal = null;
+    try { const N = hasNutrition() ? NTD() : null; const p = N && N.people && N.people[0]; const tg = p && ntTarget(p, 'kcal', null); if (tg) goal = { v: tg.v, name: p.name }; } catch (e) { /* меню не загружено */ }
+    let sub = rows.length ? `Среднее за ${periodLabel()}: ${f0(avg)} ккал в день, из них активные ${f0(avgAct)}` : '';
+    if (rows.length && goal) sub += ` · цель меню (${goal.name}) ${f0(goal.v)} → дефицит около ${f0(avg - goal.v)}`;
+    const c = card(g, `Расход энергии, ккал в день${weekly ? " — среднее по неделям" : ""}`, sub,
+      (el) => Charts.bars(el, { cats, buckets, fmt: f0, unit: 'ккал', aria: 'Расход энергии', emptyText: 'Нет данных о калориях — загрузите свежий экспорт Garmin или файл Garmin API' }),
+      () => ({ columns: [{ label: weekly ? 'Неделя' : 'День' }, { label: 'Базовый обмен', num: true }, { label: 'Активные', num: true }, { label: 'Всего', num: true }],
+        rows: buckets.slice().reverse().map(b => [b.title || b.label, f0(b.vals.bmr), f0(b.vals.act), f0(b.vals.bmr + b.vals.act)]) }));
+    if (rows.length) c.card.querySelector('.card-sub').after(h('p', 'card-sub', 'Активные калории — оценка Garmin по пульсу и движению, дефицит ориентировочный.'));
   }
 
   function renderBp(bpP, X, x0, x1) {
@@ -2927,8 +2989,8 @@ const Charts = (() => {
     L.push('');
     L.push('```csv');
     const vByT = new Map(verdicts(X.daily).map(q => [q.t, q]));
-    const dcols = ['date', 'rule_verdict', 'readiness', 'readiness_level', 'hrv', 'hrv_status', 'hrv_base_low', 'hrv_base_high', 'sleep_score', 'sleep_min', 'deep_min', 'rem_min', 'rhr', 'bb_max', 'bb_min', 'stress', 'steps', 'load_acute', 'load_chronic', 'acwr', 'acwr_status', 'acwr_calc', 'acwr_calc_eve', 'training_status', 'vo2max', 'fitness_age', 'spo2', 'respiration'];
-    const dkeys = ['d', 'readiness', 'readinessLevel', 'hrv', 'hrvStatus', 'hrvLow', 'hrvHigh', 'sleepScore', 'sleepMin', 'deepMin', 'remMin', 'rhr', 'bbMax', 'bbMin', 'stress', 'steps', 'loadAcute', 'loadChronic', 'acwr', 'acwrStatus', 'acwrCalc', 'acwrEve', 'trainingStatus', 'vo2', 'fitAge', 'spo2', 'resp'];
+    const dcols = ['date', 'rule_verdict', 'readiness', 'readiness_level', 'hrv', 'hrv_status', 'hrv_base_low', 'hrv_base_high', 'sleep_score', 'sleep_min', 'deep_min', 'rem_min', 'rhr', 'bb_max', 'bb_min', 'stress', 'steps', 'load_acute', 'load_chronic', 'acwr', 'acwr_status', 'acwr_calc', 'acwr_calc_eve', 'training_status', 'vo2max', 'fitness_age', 'spo2', 'respiration', 'kcal_total', 'kcal_active', 'kcal_bmr', 'endurance'];
+    const dkeys = ['d', 'readiness', 'readinessLevel', 'hrv', 'hrvStatus', 'hrvLow', 'hrvHigh', 'sleepScore', 'sleepMin', 'deepMin', 'remMin', 'rhr', 'bbMax', 'bbMin', 'stress', 'steps', 'loadAcute', 'loadChronic', 'acwr', 'acwrStatus', 'acwrCalc', 'acwrEve', 'trainingStatus', 'vo2', 'fitAge', 'spo2', 'resp', 'kcalTotal', 'kcalActive', 'kcalBmr', 'endur'];
     const vCode = { good: 'green', warn: 'yellow', crit: 'red' };
     L.push(csv(dcols, X.daily.map(r => { const q = vByT.get(r.t); return [r.d, q ? vCode[q.tone] + (q.partial ? '_partial' : '') : null, ...dkeys.slice(1).map(k => (typeof r[k] === 'number' ? +r[k].toFixed(2) : r[k]))]; })));
     L.push('```');
@@ -4964,7 +5026,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-11-08 23:29';
+    const BUILD = '2026-11-15 08:01';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
