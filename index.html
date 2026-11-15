@@ -574,6 +574,11 @@ a.tile:hover { border-color: var(--axis); background: var(--hover); }
 .dp-v b { font-weight: 600; }
 .dp-go { margin-top: 10px; }
 @media print { .daypanel { display: none !important; } }
+
+/* ---------- справка «?» и действия в меню */
+.section-head .help-btn { align-self: center; font-weight: 600; font-size: 14px; }
+.menu-item.danger { color: var(--crit); font-weight: 600; white-space: normal; }
+.tr-dialog .nt-list { margin: 4px 0 0; }
 </style>
 </head>
 <body>
@@ -595,6 +600,8 @@ a.tile:hover { border-color: var(--axis); background: var(--hover); }
       <button type="button" id="btn-load" class="menu-item">Загрузить выгрузки</button>
       <button type="button" id="btn-export" class="menu-item">Данные для Claude</button>
       <button type="button" id="btn-garmin-dir" class="menu-item" hidden>Папка Garmin API</button>
+      <button type="button" id="btn-tr-copy" class="menu-item" hidden>Сохранить копию трекера</button>
+      <button type="button" id="btn-tr-reset" class="menu-item" hidden>Сбросить план трекера</button>
       <a href="#data" id="menu-data" class="menu-item">Источники данных</a>
       <button type="button" id="btn-theme" class="menu-item">Тема</button>
       <div class="menu-foot"><span id="ver" class="muted small"></span></div>
@@ -2264,6 +2271,35 @@ const Charts = (() => {
     return { card: c, body, draw, addNote };
   }
 
+  // Справка раздела: кнопка «?» в заголовке раздела, текст — в диалоге
+  function helpButton(head, title, build) {
+    const b = h('button', 'icon-btn help-btn', '?'); b.type = 'button';
+    b.title = title; b.setAttribute('aria-label', title);
+    b.onclick = () => {
+      const dlg = h('dialog', 'tr-dialog');
+      dlg.addEventListener('close', () => dlg.remove());
+      const hd = h('div', 'tr-dlg-head'); hd.appendChild(h('h3', null, title)); dlg.appendChild(hd);
+      build(dlg);
+      const act = h('div', 'data-actions');
+      const cl = h('button', 'btn primary', 'Закрыть'); cl.type = 'button'; cl.onclick = () => dlg.close();
+      act.appendChild(cl); dlg.appendChild(act);
+      document.body.appendChild(dlg);
+      dlg.showModal();
+    };
+    head.appendChild(b);
+    return b;
+  }
+  // Пояснение под значком «i» для карточек, собранных вручную
+  function infoToggle(headEl, texts) {
+    const box = h('div', 'card-note'); box.hidden = true;
+    for (const t of [].concat(texts)) box.appendChild(h('p', null, t));
+    const b = h('button', 'icon-btn icon-i', 'i'); b.type = 'button';
+    b.title = 'Пояснение'; b.setAttribute('aria-label', 'Пояснение'); b.setAttribute('aria-expanded', 'false');
+    b.onclick = () => { box.hidden = !box.hidden; b.setAttribute('aria-expanded', String(!box.hidden)); };
+    const acts = h('div', 'card-actions'); acts.appendChild(b); headEl.appendChild(acts);
+    headEl.after(box);
+  }
+
   // Табличный двойник для линейного графика
   const lineTable = (series, withTime) => () => {
     const map = new Map();
@@ -2965,7 +3001,7 @@ const Charts = (() => {
       const steps = X.daily.filter(d => d.t >= a && d.t < b && d.steps != null).map(d => d.steps);
       return { w, a, started, cur: started && today < b, strength: cntT(PLAN_KIND.strength), squash: cntT(PLAN_KIND.squash), swim: cntT(PLAN_KIND.swim), z2: acts.filter(isZ2).length, steps: steps.length ? mean(steps) : null, stepDays: steps.length };
     });
-    card(g, 'Недели плана: задание и факт', { note: `Факт — из тренировок Garmin (без исключённых). Сессии: факт / план на неделю. Зона 2 — кардио от 25 мин со средним пульсом ${zone2Summary()}.` },
+    const planWk = card(g, 'Недели плана: задание и факт', { note: `Факт — из тренировок Garmin (без исключённых). Сессии: факт / план на неделю. Зона 2 — кардио от 25 мин со средним пульсом ${zone2Summary()}.` },
       (el) => {
         el.replaceChildren();
         const wrap = h('div', 'table-wrap');
@@ -3004,7 +3040,6 @@ const Charts = (() => {
           tb.appendChild(tr);
         }
         t.appendChild(tb); wrap.appendChild(t); el.appendChild(wrap);
-        el.appendChild(h('p', 'note', 'Зелёным — план недели выполнен, красным — нет; текущая неделя выделена и не оценивается, пока не закончилась. Бассейн в понедельник («по желанию») в план не входит. Фазы, нормы и зона 2 — из training\\plan.json: чтобы изменить план, поправьте файл и загрузите его через «Загрузить выгрузки».'));
       }, null, { wide: true });
 
     // Вес против целевой траектории
@@ -3022,6 +3057,7 @@ const Charts = (() => {
       { label: 'Вес, среднее за 7 дн.', color: 'var(--s1)', pts: maPts, fmt: f1, gapMs: 15 * DAY },
       { label: 'Целевая траектория', color: 'var(--s2)', pts: [[wx0, PLAN.weightFrom], [PLAN.start, PLAN.weightFrom], [PLAN.end, PLAN.weightTo]], dash: true, noEnd: true, gapMs: Infinity, fmt: f1 },
     ];
+    planWk.addNote('Зелёным — план недели выполнен, красным — нет; текущая неделя выделена и не оценивается, пока не закончилась. Бассейн в понедельник («по желанию») в план не входит. Фазы, нормы и зона 2 — из training\\plan.json: чтобы изменить план, поправьте файл и загрузите его через «Загрузить выгрузки».');
     card(g, 'Вес против цели, кг', wsub,
       (el) => Charts.line(el, { series: WS, x0: wx0, x1: PLAN.end, fmt: f1, unit: 'кг', emptyText: 'Нет данных Picooc',
         extra: (t) => (WS[1].pts.some(p => p[0] === t) ? [] : [{ value: f1(tgt(t)) + ' кг', label: 'цель на эту дату', color: 'var(--s2)', kind: 'line' }]) }),
@@ -3036,7 +3072,7 @@ const Charts = (() => {
     const dv = (r) => (r ? `${vl.vo2 - r.vo2 > 0 ? '+' : vl.vo2 - r.vo2 < 0 ? '−' : '±'}${f0(Math.abs(vl.vo2 - r.vo2))} к ${fmtDate(r.t)}` : 'нет более раннего измерения');
     const fsub = vl ? `VO2max ${f0(vl.vo2)} (${fmtDate(vl.t)}): ${dv(v90)} (≈ 3 мес.), ${dv(v365)} (≈ год). Измерений всего ${vAll.length}.` : 'Измерений VO2max нет.';
     const stP = dP.filter(d => d.trainingStatus);
-    card(g, 'Форма: статус тренированности по дням', fsub,
+    const formC = card(g, 'Форма: статус тренированности по дням', fsub,
       (el) => {
         el.replaceChildren();
         const cnt = {};
@@ -3050,8 +3086,8 @@ const Charts = (() => {
         Charts.strip(host, stP.map(d => ({ t: d.t, tone: STATUS_TONE[d.trainingStatus] || 'none', title: fmtDate(d.t),
           rows: [{ value: RU.status[d.trainingStatus] || d.trainingStatus, label: '' }, ...(d.vo2 != null ? [{ value: f0(d.vo2), label: 'VO2max, измерение' }] : [])] })),
           x0 ?? (stP[0] && stP[0].t), x1, { aria: 'Статус тренированности по дням', emptyText: 'Нет статуса за период', onPick: openDay });
-        el.appendChild(h('p', 'note', 'Зелёный — продуктивный или пик формы; серый — поддержание или восстановление; жёлтый — непродуктивный или потеря формы; красный — перенапряжение или перегрузка. Для периодизации: затяжной жёлтый — добавить объём или интенсивность, красный — разгрузочная неделя.'));
       }, null);
+    formC.addNote('Зелёный — продуктивный или пик формы; серый — поддержание или восстановление; жёлтый — непродуктивный или потеря формы; красный — перенапряжение или перегрузка. Для периодизации: затяжной жёлтый — добавить объём или интенсивность, красный — разгрузочная неделя.');
   }
 
   // Подозрительные тренировки: авто-исключение по скорости + ручное решение пользователя
@@ -4154,6 +4190,7 @@ const Charts = (() => {
 /*@end:nutrition*/
   /* ------------------------------------------------------------ отрисовка */
   let trWeek = null;        // показанная неделя (индекс)
+  let trBadgesAll = false;  // достижения: все или только полученные
   let trX = null;           // последние производные данные дашборда
   let trHost = null;
   let trPrevBadges = null;
@@ -4198,6 +4235,7 @@ const Charts = (() => {
   // Трекер: свой или (администратор) чужой — только просмотр
   function trDraw() {
     if (!trHost) return;
+    trMenu(false);
     trHost.replaceChildren();
     if (TRV && !TRV.tr) {
       const hd = h('div', 'section-head'); hd.appendChild(h('h2', null, `Трекер: ${TRV.name}`)); trHost.appendChild(hd);
@@ -4249,6 +4287,7 @@ const Charts = (() => {
     const before = today < trStart();
     const after = today >= weekStart(TR.weeks);
     head.appendChild(h('p', 'section-note', `План «${planName()}», ${fmtDate(trStart())} — ${fmtDate(weekStart(TR.weeks) - DAY)}. ${before ? `До старта ${Math.round((trStart() - today) / DAY)} дн.` : after ? 'Сезон завершён.' : `Сегодня неделя ${curW + 1} из ${TR.weeks}.`}`));
+    if (!RO) helpButton(head, 'Как работает трекер', trHelp);
     sec.appendChild(head);
     if (RO) sec.appendChild(h('p', 'note', `Только просмотр: отмечать и менять план может только ${TRV.name}. Данные Garmin к этому трекеру не подключены.`));
     if (!RO && planOutdated()) {
@@ -4365,12 +4404,12 @@ const Charts = (() => {
     // легенда
     const lg = h('div', 'legend tr-legend');
     for (const kk of ['strength', 'squash', 'zone2', 'recovery', 'mobility']) { const li = h('span', 'legend-item'); const key = h('span', 'legend-key rect'); key.style.setProperty('--c', KIND[kk].color); li.appendChild(key); li.appendChild(h('span', null, KIND[kk].label)); lg.appendChild(li); }
-    lg.appendChild(h('span', 'muted', '· точка у даты — светофор готовности · перетащите тренировку на другой день или нажмите на неё, чтобы отметить и изменить'));
+    lg.appendChild(h('span', 'muted', '· точка у даты — светофор готовности'));
     sec.appendChild(lg);
 
     // Сезон: 12 недель
     const season = h('article', 'card wide tr-season');
-    const sh = h('div', 'card-head'); const stt = h('div', 'card-titles'); stt.appendChild(h('h3', null, 'Сезон по неделям')); stt.appendChild(h('p', 'card-sub', 'Доля закрытых обязательных тренировок. Нажмите на неделю, чтобы открыть её.')); sh.appendChild(stt); season.appendChild(sh);
+    const sh = h('div', 'card-head'); const stt = h('div', 'card-titles'); stt.appendChild(h('h3', null, 'Сезон по неделям')); sh.appendChild(stt); season.appendChild(sh); infoToggle(sh, 'Доля закрытых обязательных тренировок по неделям. Нажмите на неделю, чтобы открыть её.');
     const row = h('div', 'tr-season-row');
     S.weeks.forEach((w, i) => {
       const cell = h('button', 'tr-wk' + (i === trWeek ? ' sel' : '') + (i === curW && !before && !after ? ' cur' : ''));
@@ -4387,12 +4426,20 @@ const Charts = (() => {
     season.appendChild(row);
     sec.appendChild(season);
 
-    // Достижения
+    // Достижения: полученные; остальные — по кнопке
     const bl = badges(X, S, vBy);
+    const got = bl.filter(b => b.earned);
     const bc = h('article', 'card wide');
-    const bh = h('div', 'card-head'); const btt = h('div', 'card-titles'); btt.appendChild(h('h3', null, 'Достижения')); btt.appendChild(h('p', 'card-sub', `Получено ${bl.filter(b => b.earned).length} из ${bl.length}`)); bh.appendChild(btt); bc.appendChild(bh);
+    const bh = h('div', 'card-head'); const btt = h('div', 'card-titles'); btt.appendChild(h('h3', null, 'Достижения'));
+    btt.appendChild(h('p', 'card-sub', got.length ? `Получено ${got.length} из ${bl.length}` : `Пока ни одного из ${bl.length}`)); bh.appendChild(btt); bc.appendChild(bh);
+    const showAll = trBadgesAll || !got.length;
+    if (got.length && got.length < bl.length) {
+      const more = h('button', 'btn small ghost', trBadgesAll ? 'Только полученные' : `Все ${bl.length}`); more.type = 'button';
+      more.onclick = () => { trBadgesAll = !trBadgesAll; trDraw(); };
+      bh.appendChild(more);
+    }
     const bg = h('div', 'tr-badges');
-    for (const b of bl) {
+    for (const b of (showAll ? bl : got)) {
       const it = h('div', 'tr-badge' + (b.earned ? ' on' : ''));
       it.appendChild(h('div', 'tr-badge-icon', b.earned ? '★' : '☆'));
       const tx = h('div');
@@ -4406,31 +4453,46 @@ const Charts = (() => {
     bc.appendChild(bg);
     sec.appendChild(bc);
 
-    // Правила и копия
-    const rc = h('article', 'card wide');
-    const rh = h('div', 'card-head'); const rtt = h('div', 'card-titles'); rtt.appendChild(h('h3', null, 'Как считаются очки')); rh.appendChild(rtt); rc.appendChild(rh);
+    trMenu(!RO);
+  }
+
+  // Действия трекера в меню «⋯»: копия и сброс плана (сброс — двумя нажатиями)
+  function trMenu(on) {
+    const cp = document.getElementById('btn-tr-copy'), rs = document.getElementById('btn-tr-reset');
+    if (!cp) return;
+    cp.hidden = !on; rs.hidden = !(on && hasPlan());
+    cp.onclick = exportTracker;
+    const label = 'Сбросить план трекера';
+    let armed = false, tm;
+    rs.textContent = label; rs.classList.remove('danger');
+    rs.onclick = (e) => {
+      if (!armed) {
+        e.stopPropagation();
+        armed = true; rs.textContent = 'Нажмите ещё раз: план и все отметки будут удалены'; rs.classList.add('danger');
+        tm = setTimeout(() => { armed = false; rs.textContent = label; rs.classList.remove('danger'); }, 4000);
+        return;
+      }
+      clearTimeout(tm);
+      if (!hasPlan()) return;
+      rebuildFromPlan(); trWeek = null; afterChange(null);
+    };
+  }
+  // Справка трекера: как считаются очки и как пользоваться
+  function trHelp(dlg) {
     const rules = [
       ['Силовая, длинный сквош', '10'], ['Короткий сквош, плавание и кардио в зоне 2', '8'], ['Бассейн-восстановление (по желанию), контроль', '5'],
       ['Замена на зону 2 или отдых по готовности', 'как выполнение'], ['Пропуск', '0'], [`Неделя закрыта на 100 %`, `+${BONUS_WEEK}`],
       ['День с нормой шагов (по Garmin)', `+${BONUS_STEPS}`], ['Тренировка сверх плана', '0 — очки за соблюдение плана, не за объём'],
     ];
-    Charts.table(rc.appendChild(h('div')), [{ label: 'Событие' }, { label: 'Очки', num: true }], rules);
-    rc.appendChild(h('p', 'note', `Уровень — каждые 100 очков. Серия — недели подряд, где закрыто не меньше ${Math.round(WEEK_OK * 100)} % обязательных тренировок; текущая неделя серию не рвёт, пока не закончилась. Джокер закрывает один пропуск в календарный месяц: неделя засчитывается, очков он не даёт.`));
-    if (RO) { sec.appendChild(rc); return; }
-    const act = h('div', 'data-actions');
-    const exp = h('button', 'btn', 'Сохранить копию трекера'); exp.type = 'button'; exp.onclick = exportTracker;
-    act.appendChild(exp);
-    const rs = h('button', 'btn ghost', 'Сбросить план к исходному'); rs.type = 'button';
-    let armed = false, tm;
-    rs.onclick = () => {
-      if (!armed) { armed = true; rs.textContent = 'Нажмите ещё раз: план и все отметки будут удалены'; rs.classList.add('danger'); tm = setTimeout(() => { armed = false; rs.textContent = 'Сбросить план к исходному'; rs.classList.remove('danger'); }, 4000); return; }
-      if (!hasPlan()) return;
-      clearTimeout(tm); rebuildFromPlan(); trWeek = null; afterChange(null);
-    };
-    act.appendChild(rs);
-    act.appendChild(h('span', 'muted small', 'Отметки хранятся в этом браузере. Копию кладите в training\\tracker — загружается обратно через «Загрузить выгрузки».'));
-    rc.appendChild(act);
-    sec.appendChild(rc);
+    dlg.appendChild(h('h4', 'dp-h', 'Как считаются очки'));
+    Charts.table(dlg.appendChild(h('div')), [{ label: 'Событие' }, { label: 'Очки', num: true }], rules);
+    dlg.appendChild(h('p', 'note', `Уровень — каждые 100 очков. Серия — недели подряд, где закрыто не меньше ${Math.round(WEEK_OK * 100)} % обязательных тренировок; текущая неделя серию не рвёт, пока не закончилась. Джокер закрывает один пропуск в календарный месяц: неделя засчитывается, очков он не даёт.`));
+    dlg.appendChild(h('h4', 'dp-h', 'Как пользоваться'));
+    const ul = h('ul', 'nt-list');
+    for (const t of ['Нажмите на тренировку — отметка, заметка, перенос и правка.', 'Перетащите тренировку на другой день, чтобы перенести её.',
+      'Точка у даты — светофор готовности этого дня.', 'Тренировку на сегодня можно отметить и на экране «Сегодня».',
+      'Отметки хранятся в браузере и синхронизируются после входа. Копия — меню «⋯» → «Сохранить копию трекера», файл кладите в training\\tracker; загружается обратно через «Загрузить выгрузки».']) ul.appendChild(h('li', null, t));
+    dlg.appendChild(ul);
   }
 
   function progress(p) {
@@ -4721,6 +4783,8 @@ const Charts = (() => {
     head.appendChild(h('h2', null, 'Питание'));
     const before = today < ntStart();
     head.appendChild(h('p', 'section-note', `Меню «${N.name || 'без названия'}»: ${ntCycle()} нед. по кругу с ${fmtDate(ntStart())}. ${before ? `До старта ${Math.round((ntStart() - today) / DAY)} дн.` : `Сейчас неделя меню ${ntMenuIdx(ntWeekNo(today)) + 1}.`} Нажмите на блюдо — рецепт и граммы.`));
+    { const pp = ntPerson(ntPid);
+      if ((pp.notes || []).length) helpButton(head, `Правила питания — ${pp.name}`, (dlg) => { const ul = h('ul', 'nt-list'); for (const n of pp.notes) ul.appendChild(h('li', null, n)); dlg.appendChild(ul); }); }
     sec.appendChild(head);
     const ctl = h('div', 'nt-ctl');
     ctl.appendChild(segmented(N.people.map(q => [q.id, q.name]), p.id, (id) => { ntPid = id; try { localStorage.setItem(LS_NPERSON, id); } catch (e) { /* нет */ } ntDraw(); }, 'Чьё меню'));
@@ -4776,8 +4840,8 @@ const Charts = (() => {
     const c = h('article', 'card wide');
     const ch = h('div', 'card-head'); const ct = h('div', 'card-titles');
     ct.appendChild(h('h3', null, `КБЖУ по дням — ${p.name}`));
-    ct.appendChild(h('p', 'card-sub', `Порция = базовая × ${N2.format(p.factor)}. Красным — вне цели: ${(p.targets || []).filter(q => q.mode === 'target').map(q => `${q.label.toLowerCase()} ±${Math.round((q.tol != null ? q.tol : 0.05) * 100)} %`).join(', ')}; «≥» — минимум, «≤» — максимум.`));
     ch.appendChild(ct); c.appendChild(ch);
+    infoToggle(ch, [`Порция = базовая × ${N2.format(p.factor)}. Красным — вне цели: ${(p.targets || []).filter(q => q.mode === 'target').map(q => `${q.label.toLowerCase()} ±${Math.round((q.tol != null ? q.tol : 0.05) * 100)} %`).join(', ')}; «≥» — минимум, «≤» — максимум.`, 'ккал = 4 × белки + 9 × жиры + 4 × углеводы + 2 × клетчатка. Состав — справочные средние, ±10 %; соль — из продуктов и отмеренная по рецепту. «(+…)» — прибавка в день сквоша.']);
     const keys = NUTR_KEYS.filter(k => k === 'kcal' || (p.targets || []).some(q => q.k === k) || ['P', 'F', 'C'].includes(k));
     const LBL = { kcal: 'ккал', P: 'Белки, г', F: 'Жиры, г', SF: 'НЖК, г', C: 'Углеводы, г', Fib: 'Клетчатка, г', Salt: 'Соль, г', Fe: 'Железо, мг' };
     const tbl = h('table', 'data-table nt-table');
@@ -4799,14 +4863,7 @@ const Charts = (() => {
     tb.appendChild(tgr);
     tbl.appendChild(tb);
     const wrap = h('div', 'table-wrap'); wrap.style.maxHeight = 'none'; wrap.appendChild(tbl); c.appendChild(wrap);
-    c.appendChild(h('p', 'note', 'ккал = 4 × белки + 9 × жиры + 4 × углеводы + 2 × клетчатка. Состав — справочные средние, ±10 %; соль — из продуктов и отмеренная по рецепту. «(+…)» — прибавка в день сквоша.'));
     grid.appendChild(c);
-    if ((p.notes || []).length) {
-      const nc = h('article', 'card wide');
-      nc.appendChild(h('h3', null, `Правила — ${p.name}`));
-      const ul = h('ul', 'nt-list'); for (const n of p.notes) ul.appendChild(h('li', null, n)); nc.appendChild(ul);
-      grid.appendChild(nc);
-    }
   }
 
   // Рецепт: граммы для выбранного человека (или для всех — в «Готовке»)
@@ -5468,7 +5525,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-11-15 08:47';
+    const BUILD = '2026-11-15 08:52';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
