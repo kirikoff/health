@@ -529,6 +529,51 @@ a.tile:hover { border-color: var(--axis); background: var(--hover); }
 .tile-value { font-size: 24px; }
 .tile-delta { margin-top: 1px; }
 .tile-spark { height: 30px; padding-top: 4px; }
+
+/* ---------- карточки: «i» — пояснение, значок — таблица */
+.card-actions { display: flex; gap: 4px; flex: none; }
+.icon-btn { width: 28px; height: 28px; padding: 0; display: inline-grid; place-items: center; border: 1px solid var(--border); background: transparent;
+  border-radius: 8px; cursor: pointer; color: var(--ink2); }
+.icon-btn[hidden] { display: none; }
+.icon-i { font: italic 600 14px/1 Georgia, 'Times New Roman', serif; }
+.icon-btn:hover { background: var(--hover); color: var(--ink); }
+.icon-btn[aria-expanded="true"], .icon-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--page); }
+.icon-btn:focus-visible, .legend-toggle:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.card-note { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--hover); color: var(--ink2); font-size: 12.5px; }
+.card-note p { margin: 0; }
+.card-note p + p { margin-top: 4px; }
+.legend-toggle { border: 1px solid var(--border); background: transparent; border-radius: 999px; padding: 3px 10px; cursor: pointer; font: inherit; color: var(--ink2); }
+.legend-toggle:hover { background: var(--hover); color: var(--ink); }
+.legend-toggle[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
+.legend-toggle[aria-pressed="false"] .legend-key { opacity: .35; }
+.overlay.pickable, .cell.pickable { cursor: pointer; }
+
+/* ---------- Восстановление: четыре строки на общей оси */
+.rec-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; border-top: 1px solid var(--grid); }
+.rec-row:first-child { border-top: 0; }
+.rec-lab { padding: 6px 10px 6px 0; min-width: 0; }
+.rec-name { color: var(--ink2); font-size: 12.5px; }
+.rec-val { font-size: 20px; font-weight: 620; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.rec-sub { color: var(--muted); font-size: 12px; min-height: 16px; }
+.rec-chart { min-width: 0; }
+@media (max-width: 640px) { .rec-row { grid-template-columns: 98px minmax(0, 1fr); } .rec-val { font-size: 17px; } }
+
+/* ---------- панель дня */
+.daypanel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; width: min(380px, 100vw); overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--border); box-shadow: -8px 0 28px rgba(0,0,0,.14); padding: 14px 16px 28px; outline: none; }
+.dp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.dp-date { font-size: 18px; font-weight: 650; }
+.dp-nav { display: flex; gap: 4px; flex: none; }
+.dp-verdict { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dp-verdict .verdict-light { width: 28px; height: 28px; font-size: 14px; }
+.dp-vname { font-weight: 600; }
+.dp-h { margin: 16px 0 2px; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.dp-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--grid); font-size: 13.5px; }
+.dp-l { color: var(--ink2); min-width: 0; }
+.dp-v { text-align: right; font-variant-numeric: tabular-nums; }
+.dp-v b { font-weight: 600; }
+.dp-go { margin-top: 10px; }
+@media print { .daypanel { display: none !important; } }
 </style>
 </head>
 <body>
@@ -1333,6 +1378,18 @@ const Charts = (() => {
     return [];
   }
 
+  /* ------------------------------------------------------------ общий курсор и переключатели рядов */
+  // Группа графиков с общей осью: курсор на одном показывает тот же день на остальных
+  function cursorGroup() {
+    const charts = new Map(), ls = [];
+    return {
+      add(key, fn) { charts.set(key, fn); },
+      listen(fn) { ls.push(fn); },
+      emit(t, src) { for (const [k, fn] of charts) if (k !== src) fn(t); ls.forEach(fn => fn(t)); },
+    };
+  }
+  const TOG = {};   // включённые ряды легенд-переключателей, на время сессии
+
   /* ------------------------------------------------------------ tooltip */
   const tip = (() => {
     let node;
@@ -1384,14 +1441,40 @@ const Charts = (() => {
   }
 
   /* ------------------------------------------------------------ линии */
+  // Легенда, где ряд включается и выключается нажатием (cfg.toggleKey; ряд с optional по умолчанию выключен)
+  function legendToggle(host, cfg, on, band) {
+    const box = h('div', 'legend');
+    for (const sr of cfg.series) {
+      const act = on(sr);
+      const b = h('button', 'legend-item legend-toggle'); b.type = 'button';
+      b.setAttribute('aria-pressed', String(act));
+      b.title = act ? 'Скрыть ряд' : 'Показать ряд';
+      const k = h('span', 'legend-key ' + (sr.lineless ? 'dot' : sr.dash ? 'dash' : 'line'));
+      k.style.setProperty('--c', sr.color);
+      b.appendChild(k); b.appendChild(h('span', null, sr.label));
+      b.onclick = () => { TOG[cfg.toggleKey + '|' + sr.label] = !act; tip.hide(); line(host, cfg); };
+      box.appendChild(b);
+    }
+    if (band) {
+      const li = h('span', 'legend-item');
+      const k = h('span', 'legend-key area'); k.style.setProperty('--c', band.color);
+      li.appendChild(k); li.appendChild(h('span', null, band.label)); box.appendChild(li);
+    }
+    return box;
+  }
+
   function line(host, cfg) {
     host.replaceChildren();
-    const series = cfg.series.map(sr => ({ ...sr, pts: sr.pts.filter(p => p[1] !== null && p[1] !== undefined).sort((a, b) => a[0] - b[0]) }));
+    const on = (sr) => !cfg.toggleKey || (TOG[cfg.toggleKey + '|' + sr.label] ?? !sr.optional);
+    const series = cfg.series.filter(on).map(sr => ({ ...sr, pts: sr.pts.filter(p => p[1] !== null && p[1] !== undefined).sort((a, b) => a[0] - b[0]) }));
     const band = cfg.band ? { ...cfg.band, pts: cfg.band.pts.filter(p => p[1] != null && p[2] != null).sort((a, b) => a[0] - b[0]) } : null;
     const vals = [];
     series.forEach(sr => sr.pts.forEach(p => vals.push(p[1])));
     if (band) band.pts.forEach(p => vals.push(p[1], p[2]));
-    if (!vals.length) return empty(host, cfg.emptyText);
+    if (cfg.toggleKey) {
+      host.appendChild(legendToggle(host, cfg, on, band));
+      if (!vals.length) { host.appendChild(h('div', 'chart-empty', cfg.emptyText || 'Нет данных за выбранный период')); return; }
+    } else if (!vals.length) return empty(host, cfg.emptyText);
     if (cfg.include) vals.push(...cfg.include.filter(v => v != null));
 
     const allT = [];
@@ -1402,7 +1485,7 @@ const Charts = (() => {
     let x1 = cfg.x1 != null ? Math.max(cfg.x1, dataMax) : dataMax;
     if (x1 - x0 < DAY) { x0 -= DAY; x1 += DAY; }
 
-    if (series.length > 1 || band) {
+    if (!cfg.toggleKey && !cfg.noLegend && (series.length > 1 || band)) {
       const items = series.map(sr => ({ label: sr.label, color: sr.color, kind: sr.lineless ? 'dot' : sr.dash ? 'dash' : 'line' }));
       if (band) items.push({ label: band.label, color: band.color, kind: 'area' });
       host.appendChild(legend(items));
@@ -1416,7 +1499,7 @@ const Charts = (() => {
     const tickFmt = cfg.tickFmt || ((v) => tickNf.format(v));
     const maxLab = Math.max(...sc.ticks.map(v => tickFmt(v).length));
     const endLabel = cfg.endLabel === true || (series.length === 1 && !band && cfg.endLabel !== false);
-    const m = { l: 10 + maxLab * 6.6, r: endLabel ? 44 : 14, t: 10, b: 24 };
+    const m = { l: cfg.marginL ?? 10 + maxLab * 6.6, r: cfg.marginR ?? (endLabel ? 44 : 14), t: cfg.marginT ?? 10, b: cfg.noXAxis ? 6 : 24 };
     const pw = W - m.l - m.r, ph = H - m.t - m.b;
     const X = (t) => m.l + (t - x0) / (x1 - x0) * pw;
     const Y = (v) => m.t + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * ph;
@@ -1432,7 +1515,7 @@ const Charts = (() => {
       s('line', { x1: m.l, x2: W - m.r, y1: y, y2: y, class: v === sc.lo ? 'axis-line' : 'grid-line' }, g);
       s('text', { x: m.l - 6, y: y + 3.5, class: 'tick', 'text-anchor': 'end' }, g).textContent = tickFmt(v);
     }
-    for (const tk of timeTicks(x0, x1, pw)) {
+    if (!cfg.noXAxis) for (const tk of timeTicks(x0, x1, pw)) {
       const x = X(tk.t);
       s('line', { x1: x, x2: x, y1: H - m.b, y2: H - m.b + 4, class: 'axis-line' }, g);
       s('text', { x, y: H - m.b + 16, class: 'tick', 'text-anchor': 'middle' }, g).textContent = tk.label;
@@ -1530,20 +1613,44 @@ const Charts = (() => {
       }
       if (cfg.extra) rows.push(...cfg.extra(t));
       const r = svg.getBoundingClientRect();
-      tip.show(cfg.titleFmt ? cfg.titleFmt(t) : fmtDate(t, cfg.withTime), rows, cx ?? r.left + x, cy ?? r.top + m.t + 10);
+      if (!cfg.noTip) tip.show(cfg.titleFmt ? cfg.titleFmt(t) : fmtDate(t, cfg.withTime), rows, cx ?? r.left + x, cy ?? r.top + m.t + 10);
+      if (cfg.group) cfg.group.emit(t, cfg.groupKey);
     }
     overlay.addEventListener('pointermove', (ev) => {
       const r = svg.getBoundingClientRect();
       const t = x0 + (ev.clientX - r.left - m.l) / pw * (x1 - x0);
       showAt(nearest(t), ev.clientX, ev.clientY);
     });
-    overlay.addEventListener('pointerleave', () => { hover.style.display = 'none'; tip.hide(); });
+    overlay.addEventListener('pointerleave', () => { hover.style.display = 'none'; tip.hide(); if (cfg.group) cfg.group.emit(null, cfg.groupKey); });
     svg.addEventListener('focus', () => showAt(idx));
     svg.addEventListener('blur', () => { hover.style.display = 'none'; tip.hide(); });
     svg.addEventListener('keydown', (ev) => {
       if (ev.key === 'ArrowLeft') { showAt(Math.max(0, idx - 1)); ev.preventDefault(); }
       if (ev.key === 'ArrowRight') { showAt(Math.min(uniq.length - 1, idx + 1)); ev.preventDefault(); }
       if (ev.key === 'Escape') { hover.style.display = 'none'; tip.hide(); }
+    });
+    // выбор дня: нажатие на график или Enter
+    if (cfg.onPick) {
+      overlay.classList.add('pickable');
+      overlay.addEventListener('click', (ev) => {
+        const r = svg.getBoundingClientRect();
+        cfg.onPick(uniq[nearest(x0 + (ev.clientX - r.left - m.l) / pw * (x1 - x0))]);
+      });
+      svg.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { cfg.onPick(uniq[idx]); ev.preventDefault(); } });
+    }
+    // общий курсор: день, на который навели в другом графике группы
+    if (cfg.group) cfg.group.add(cfg.groupKey, (t) => {
+      if (!svg.isConnected) return;
+      if (t == null || t < x0 || t > x1) { hover.style.display = 'none'; return; }
+      const x = X(t);
+      hover.style.display = '';
+      cross.setAttribute('x1', x); cross.setAttribute('x2', x);
+      series.forEach((sr, k) => {
+        const v = maps[k].get(t);
+        if (v === undefined) { hdots[k].style.display = 'none'; return; }
+        hdots[k].style.display = '';
+        hdots[k].setAttribute('cx', x); hdots[k].setAttribute('cy', Y(v));
+      });
     });
   }
 
@@ -1665,6 +1772,7 @@ const Charts = (() => {
       };
       r.addEventListener('pointermove', show);
       r.addEventListener('pointerleave', () => { r.classList.remove('on'); tip.hide(); });
+      if (opts.onPick) { r.classList.add('pickable'); r.addEventListener('click', () => { tip.hide(); opts.onPick(t); }); }
     }
     svg.addEventListener('blur', () => { cells.forEach(c => c.classList.remove('on')); tip.hide(); });
   }
@@ -1687,7 +1795,7 @@ const Charts = (() => {
     t.appendChild(tb); wrap.appendChild(t); host.appendChild(wrap);
   }
 
-  return { line, bars, spark, strip, table, legend, fmtDate, tip, MON, DAY, h };
+  return { line, bars, spark, strip, table, legend, cursorGroup, fmtDate, tip, MON, DAY, h };
 })();
 
 /* ============================================================================
@@ -2102,36 +2210,58 @@ const Charts = (() => {
     return grid;
   }
 
-  // Карточка с графиком и переключателем «Таблица»
+  // Карточка: заголовок, короткий статус (lead) и пояснение под значком «i» (note); график ↔ таблица — значок в углу.
+  // sub — строка (статус) или { lead, note }, note — строка или массив строк
+  const ICON = { table: 'M3 4.5h14v11H3z M3 8.5h14 M3 12h14 M8 4.5v11', chart: 'M3 4v12h14 M5.5 12.5l3.5-4 3 2.5 4.5-6' };
+  function icon(name) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    for (const [k, v] of Object.entries({ viewBox: '0 0 20 20', width: 16, height: 16, 'aria-hidden': 'true' })) svg.setAttribute(k, v);
+    const pth = document.createElementNS(ns, 'path');
+    for (const [k, v] of Object.entries({ d: ICON[name], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' })) pth.setAttribute(k, v);
+    svg.appendChild(pth);
+    return svg;
+  }
   function card(grid, title, sub, drawChart, tableSpec, opts = {}) {
+    const lead = sub && typeof sub === 'object' ? sub.lead : sub;
     const c = h('article', 'card' + (opts.wide ? ' wide' : ''));
     const hd = h('header', 'card-head');
     const tt = h('div', 'card-titles');
     tt.appendChild(h('h3', null, title));
-    if (sub) tt.appendChild(h('p', 'card-sub', sub));
+    if (lead) tt.appendChild(h('p', 'card-sub', lead));
     hd.appendChild(tt);
+    const acts = h('div', 'card-actions');
+    hd.appendChild(acts);
+    const noteBox = h('div', 'card-note');
+    noteBox.hidden = true;
+    const info = h('button', 'icon-btn icon-i', 'i'); info.type = 'button'; info.hidden = true;
+    info.title = 'Пояснение'; info.setAttribute('aria-label', 'Пояснение'); info.setAttribute('aria-expanded', 'false');
+    info.onclick = () => { noteBox.hidden = !noteBox.hidden; info.setAttribute('aria-expanded', String(!noteBox.hidden)); };
+    acts.appendChild(info);
+    const addNote = (text) => { noteBox.appendChild(h('p', null, text)); info.hidden = false; };
+    if (sub && typeof sub === 'object' && sub.note) [].concat(sub.note).forEach(addNote);
     const body = h('div', 'chart');
     let asTable = false;
     if (tableSpec) {
-      const btn = h('button', 'btn ghost small', 'Таблица');
-      btn.type = 'button';
-      btn.setAttribute('aria-pressed', 'false');
-      btn.onclick = () => {
-        asTable = !asTable;
-        btn.textContent = asTable ? 'График' : 'Таблица';
-        btn.setAttribute('aria-pressed', String(asTable));
-        draw();
+      const btn = h('button', 'icon-btn'); btn.type = 'button';
+      const setB = () => {
+        btn.replaceChildren(icon(asTable ? 'chart' : 'table'));
+        const l = asTable ? 'Показать график' : 'Показать таблицу';
+        btn.title = l; btn.setAttribute('aria-label', l); btn.setAttribute('aria-pressed', String(asTable));
       };
-      hd.appendChild(btn);
+      setB();
+      btn.onclick = () => { asTable = !asTable; setB(); draw(); };
+      acts.appendChild(btn);
     }
     c.appendChild(hd);
+    c.appendChild(noteBox);
     c.appendChild(body);
     grid.appendChild(c);
     const draw = () => {
       if (asTable) { const t = tableSpec(); Charts.table(body, t.columns, t.rows); } else drawChart(body);
     };
     pushDraw(draw);
-    return { card: c, body, draw };
+    return { card: c, body, draw, addNote };
   }
 
   // Табличный двойник для линейного графика
@@ -2191,6 +2321,7 @@ const Charts = (() => {
     drawn.clear();
     dash.replaceChildren();
     const X = derive();
+    curX = X;
     if (autoCloseDays(X)) trSave();   // закрытие прошедших дней по факту Garmin
     document.getElementById('asof').textContent = X.asOf != null ? `данные на ${fmtDate(X.asOf)}` : '';
     document.querySelectorAll('.period button').forEach(b => b.setAttribute('aria-checked', String(String(state.period) === b.dataset.p)));
@@ -2225,6 +2356,7 @@ const Charts = (() => {
     renderLabs(X);
     renderData(X);
     showTab(state.tab);
+    if (dayEl && !dayEl.hidden && dayT != null) drawDay();
   }
 
   /* ------------------------------------------------------------ вкладки */
@@ -2256,6 +2388,134 @@ const Charts = (() => {
     if (push && id !== state.tab) history.pushState(null, '', '#' + id);
     showTab(id);
     window.scrollTo(0, 0);
+  }
+
+  /* ------------------------------------------------------------ панель дня */
+  // Нажатие на день в ленте светофора или на графике: условия светофора, показатели дня, тренировки Garmin и отметки трекера
+  let curX = null, dayT = null, dayEl = null;
+  const WD_RU = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+  function openDay(t) {
+    if (t == null || !curX) return;
+    dayT = t - (t % DAY);
+    if (!dayEl) {
+      dayEl = h('aside', 'daypanel');
+      dayEl.setAttribute('aria-label', 'Панель дня');
+      dayEl.tabIndex = -1;
+      document.body.appendChild(dayEl);
+    }
+    Charts.tip.hide();
+    dayEl.hidden = false;
+    drawDay();
+    dayEl.focus({ preventScroll: true });
+  }
+  function closeDay() { if (dayEl) dayEl.hidden = true; dayT = null; }
+  function drawDay() {
+    const X = curX, t = dayT, date = U.msToDate(t);
+    const d = X.daily.find(r => r.t === t) || null;
+    dayEl.replaceChildren();
+    const hd = h('div', 'dp-head');
+    const ttl = h('div');
+    ttl.appendChild(h('div', 'dp-date', fmtDate(t)));
+    ttl.appendChild(h('div', 'muted small', WD_RU[new Date(t).getUTCDay()]));
+    hd.appendChild(ttl);
+    const nav = h('div', 'dp-nav');
+    const btn = (txt, lab, fn, dis) => { const b = h('button', 'btn small', txt); b.type = 'button'; b.title = lab; b.setAttribute('aria-label', lab); b.disabled = !!dis; b.onclick = fn; nav.appendChild(b); };
+    btn('←', 'Предыдущий день', () => { dayT -= DAY; drawDay(); });
+    btn('→', 'Следующий день', () => { dayT += DAY; drawDay(); }, X.asOf != null && t >= X.asOf);
+    btn('Закрыть', 'Закрыть панель дня', closeDay);
+    hd.appendChild(nav);
+    dayEl.appendChild(hd);
+
+    const v = verdicts(X.daily).find(q => q.t === t);
+    if (v) {
+      const vb = h('div', 'dp-verdict');
+      const light = h('span', 'verdict-light ' + v.tone, { good: '✓', warn: '!', crit: '✕' }[v.tone]);
+      light.setAttribute('aria-hidden', 'true');
+      vb.appendChild(light);
+      const vt = h('div');
+      vt.appendChild(h('div', 'dp-vname', v.label));
+      vt.appendChild(h('div', 'muted small', v.advice + (v.partial ? ` · нет данных по ${v.missing} из 4 условий` : '')));
+      vb.appendChild(vt);
+      dayEl.appendChild(vb);
+      const chips = h('div', 'td-chips');
+      for (const c of v.conds) {
+        const ch = h('span', 'chip small ' + (c.ok === true ? 'ok' : c.ok === false ? 'no' : 'na'), `${c.ok === true ? '✓' : c.ok === false ? '✕' : '—'} ${c.label}: ${c.value ?? 'нет данных'}`);
+        ch.title = `Нужно: ${c.need}`;
+        chips.appendChild(ch);
+      }
+      dayEl.appendChild(chips);
+    } else dayEl.appendChild(h('p', 'muted small', 'Светофора за этот день нет: не хватает данных Garmin.'));
+
+    const rows = [];
+    const add = (label, value, extra) => { if (value != null) rows.push([label, value, extra || '']); };
+    if (d) {
+      add('HRV ночью', d.hrv != null ? `${f0(d.hrv)} мс` : null, d.hrvStatus ? RU.hrv[d.hrvStatus] : '');
+      add('Оценка сна', d.sleepScore != null ? f0(d.sleepScore) : null, d.sleepMin != null ? hm(d.sleepMin) : '');
+      add('Body Battery', d.bbMax != null ? `${f0(d.bbMax)} / ${f0(d.bbMin)}` : null, d.bbCharged != null ? `макс. / мин. · заряд за ночь +${f0(d.bbCharged)}` : 'макс. / мин.');
+      add('Стресс', d.stress != null ? f0(d.stress) : null, d.stressMax != null ? `пик ${f0(d.stressMax)}` : '');
+      add('Пульс покоя', d.rhr != null ? `${f0(d.rhr)} уд/мин` : null);
+      add('Готовность Garmin', d.readiness != null ? f0(d.readiness) : null, RU.level[d.readinessLevel] || '');
+      add('Шаги', d.steps != null ? N0.format(d.steps) : null);
+      add('Острая нагрузка', d.loadAcuteCalc != null ? f0(d.loadAcuteCalc) : null, d.acwrCalc != null ? `ACWR ${N2.format(d.acwrCalc)}` : '');
+      add('Минуты интенсивности', d.imMod != null || d.imVig != null ? f0((d.imMod || 0) + (d.imVig || 0)) : null, d.imVig ? `из них высокой ${f0(d.imVig)}` : '');
+      add('Расход энергии', d.kcalTotal != null ? `${N0.format(d.kcalTotal)} ккал` : null, d.kcalActive != null ? `активные ${N0.format(d.kcalActive)}` : '');
+      add('SpO2', d.spo2 != null ? `${f0(d.spo2)} %` : null);
+    }
+    const bd = X.bodyDay.find(r => r.t === t);
+    if (bd && bd.weight != null) add('Вес', `${f1(bd.weight)} кг`, bd.weightMA != null ? `среднее за 7 дн. ${f1(bd.weightMA)}` : '');
+    for (const b of X.bp.filter(r => r.t - (r.t % DAY) === t)) add('Давление', `${f0(b.sys)}/${f0(b.dia)}`, fmtDate(b.t, true).slice(-5) + (b.pulse ? ` · пульс ${f0(b.pulse)}` : ''));
+    dayEl.appendChild(h('h4', 'dp-h', 'Показатели'));
+    if (rows.length) {
+      const box = h('div', 'dp-rows');
+      for (const [l, val, ex] of rows) {
+        const r = h('div', 'dp-row');
+        r.appendChild(h('span', 'dp-l', l));
+        const vv = h('span', 'dp-v');
+        vv.appendChild(h('b', null, val));
+        if (ex) vv.appendChild(h('div', 'muted small', ex));
+        r.appendChild(vv);
+        box.appendChild(r);
+      }
+      dayEl.appendChild(box);
+    } else dayEl.appendChild(h('p', 'muted small', 'Показателей за этот день нет.'));
+
+    dayEl.appendChild(h('h4', 'dp-h', 'Тренировки Garmin'));
+    const acts = X.actsAll.filter(a => a.date === date);
+    if (!acts.length) dayEl.appendChild(h('p', 'muted small', 'Тренировок нет.'));
+    for (const a of acts) {
+      const r = h('div', 'dp-row');
+      const nm = h('span', 'dp-l');
+      nm.appendChild(h('div', null, actName(a)));
+      if (isExcluded(a)) nm.appendChild(h('div', 'muted small', 'исключена из статистики'));
+      r.appendChild(nm);
+      const vv = h('span', 'dp-v');
+      vv.appendChild(h('b', null, hm(a.durMin)));
+      const ex = [a.avgHr ? `пульс ${f0(a.avgHr)}` : '', a.load ? `нагрузка ${f0(a.load)}` : ''].filter(Boolean).join(' · ');
+      if (ex) vv.appendChild(h('div', 'muted small', ex));
+      r.appendChild(vv);
+      dayEl.appendChild(r);
+    }
+
+    if (hasTracker()) {
+      const ss = Object.values(TR.sessions).filter(q => q.date === date).sort((p1, p2) => (p1.slot === p2.slot ? 0 : p1.slot === 'am' ? -1 : 1));
+      dayEl.appendChild(h('h4', 'dp-h', 'Трекер'));
+      const wk0 = weekOf(date);
+      if (!ss.length) dayEl.appendChild(h('p', 'muted small', wk0 < 0 || wk0 >= TR.weeks ? 'День вне периода плана.' : 'По плану тренировок не было.'));
+      for (const q of ss) {
+        const l = TR.log[q.id];
+        const r = h('div', 'dp-row');
+        r.appendChild(h('span', 'dp-l', q.title));
+        const stx = l ? (l.joker ? 'закрыто джокером' : (ST[l.st] || {}).label || '') + (l.auto ? ' · Garmin' : '') : 'не отмечено';
+        r.appendChild(h('span', 'dp-v td-sess-st ' + (l && !l.joker && ST[l.st] ? ST[l.st].tone : 'none'), stx));
+        dayEl.appendChild(r);
+      }
+      const w = weekOf(date);
+      if (w >= 0 && w < TR.weeks) {
+        const go = h('button', 'btn small dp-go', 'Открыть неделю в трекере'); go.type = 'button';
+        go.onclick = () => { trWeek = w; closeDay(); trDraw(); goTab('tracker', true); };
+        dayEl.appendChild(go);
+      }
+    }
   }
 
   let todayWhy = false;    // раскрыт ли блок «Почему и история»
@@ -2465,30 +2725,75 @@ const Charts = (() => {
       rows: q.conds.map(c => ({ value: c.value ?? '—', label: `${c.label} ${c.ok === true ? '✓' : c.ok === false ? '✕' : '(нет данных)'}` })),
     }));
     more.appendChild(garminHero(X));
-    const drawStrip = () => { if (!more.hidden) Charts.strip(host, items, t30, X.asOf, { aria: 'Светофор готовности по дням' }); };
+    const drawStrip = () => { if (!more.hidden) Charts.strip(host, items, t30, X.asOf, { aria: 'Светофор готовности по дням', onPick: openDay }); };
     const apply = () => { more.hidden = !todayWhy; btn.textContent = todayWhy ? 'Свернуть' : 'Почему и история'; btn.setAttribute('aria-expanded', String(todayWhy)); drawStrip(); };
     btn.onclick = () => { todayWhy = !todayWhy; apply(); };
     apply();
     pushDraw(drawStrip);
   }
 
+  // Восстановление: HRV, сон, Body Battery и стресс — четыре графика на общей оси времени с общим курсором.
+  // Слева — значения дня под курсором (по умолчанию последнего), нажатие на день открывает панель дня
   function renderRecovery(dP, x0, x1) {
     const g = section('recovery', 'Восстановление', 'HRV, сон, Body Battery и стресс — основа оценки готовности к нагрузке.');
-    const hrvS = [{ label: 'HRV ночью', color: 'var(--s1)', pts: pts(dP, 'hrv'), fmt: f0 }];
-    const bandPts = dP.filter(d => d.hrvLow != null && d.hrvHigh != null).map(d => [d.t, d.hrvLow, d.hrvHigh]);
-    card(g, 'HRV ночью, мс', 'Линия — ночной HRV, полоса — индивидуальный базовый диапазон Garmin',
-      (el) => Charts.line(el, { series: hrvS, band: { label: 'базовый диапазон', color: 'var(--s1)', pts: bandPts }, x0, x1, fmt: f0, unit: 'мс',
-        extra: (t) => { const d = dP.find(q => q.t === t); return d && d.hrvStatus ? [{ value: RU.hrv[d.hrvStatus] || d.hrvStatus, label: 'статус' }] : []; } }),
-      () => {
-        const rows = dP.filter(d => d.hrv != null).slice().reverse().map(d => [fmtDate(d.t), f0(d.hrv), d.hrvLow ? `${f0(d.hrvLow)}–${f0(d.hrvHigh)}` : null, RU.hrv[d.hrvStatus] || d.hrvStatus]);
-        return { columns: [{ label: 'Дата' }, { label: 'HRV, мс', num: true }, { label: 'База', num: true }, { label: 'Статус' }], rows };
+    const byT = new Map(dP.map(d => [d.t, d]));
+    const has = dP.filter(d => ['hrv', 'sleepScore', 'bbMax', 'bbMin', 'stress'].some(k => d[k] != null));
+    const X0 = x0 != null ? x0 : (has[0] ? has[0].t : null);
+    const lastDay = has.at(-1) || null;
+    const ROWS = [
+      { key: 'hrv', label: 'HRV ночью', series: [{ label: 'HRV ночью', color: 'var(--s1)', pts: pts(dP, 'hrv'), fmt: f0 }],
+        band: { label: 'базовый диапазон', color: 'var(--s1)', pts: dP.filter(d => d.hrvLow != null && d.hrvHigh != null).map(d => [d.t, d.hrvLow, d.hrvHigh]) },
+        val: (d) => (d.hrv != null ? `${f0(d.hrv)} мс` : '—'),
+        sub: (d) => (d.hrvStatus ? RU.hrv[d.hrvStatus] || '' : d.hrvLow ? `база ${f0(d.hrvLow)}–${f0(d.hrvHigh)}` : '') },
+      { key: 'sleep', label: 'Оценка сна', yMax: 100, series: [{ label: 'Оценка сна', color: 'var(--s1)', pts: pts(dP, 'sleepScore'), fmt: f0 }],
+        val: (d) => f0(d.sleepScore), sub: (d) => (d.sleepMin != null ? hm(d.sleepMin) : '') },
+      { key: 'bb', label: 'Body Battery', yMax: 100, yZero: true,
+        series: [{ label: 'Максимум', color: 'var(--s1)', pts: pts(dP, 'bbMax'), fmt: f0 }, { label: 'Минимум', color: 'var(--s2)', pts: pts(dP, 'bbMin'), fmt: f0 }],
+        val: (d) => (d.bbMax != null ? `${f0(d.bbMax)} / ${f0(d.bbMin)}` : '—'),
+        sub: (d) => (d.bbCharged != null ? `заряд за ночь +${f0(d.bbCharged)}` : 'макс. / мин.') },
+      { key: 'stress', label: 'Стресс', yMax: 100, yZero: true, series: [{ label: 'Стресс', color: 'var(--s1)', pts: pts(dP, 'stress'), fmt: f0 }],
+        val: (d) => f0(d.stress), sub: (d) => (d.stressMax != null ? `среднее · пик ${f0(d.stressMax)}` : 'среднее за сутки') },
+    ];
+    let leadEl = null;
+    const ref = card(g, 'HRV, сон, Body Battery, стресс', {
+      lead: ' ',
+      note: ['Четыре графика на одной оси времени: наведите курсор — слева значения этого дня во всех строках; нажмите — откроется панель дня.',
+        'HRV: полоса — индивидуальный базовый диапазон Garmin. Body Battery: синяя линия — максимум дня, оранжевая — минимум. Стресс — среднее за сутки, из 100.'],
+    }, (el) => {
+      el.replaceChildren();
+      if (!has.length) { el.appendChild(h('div', 'chart-empty', 'Нет данных за выбранный период')); return; }
+      const grp = Charts.cursorGroup();
+      const cells = [];
+      ROWS.forEach((R, i) => {
+        const row = h('div', 'rec-row');
+        const lab = h('div', 'rec-lab');
+        lab.appendChild(h('div', 'rec-name', R.label));
+        const v = h('div', 'rec-val'), sb = h('div', 'rec-sub');
+        lab.appendChild(v); lab.appendChild(sb);
+        const host = h('div', 'rec-chart');
+        row.appendChild(lab); row.appendChild(host);
+        el.appendChild(row);
+        cells.push([R, v, sb]);
+        const last = i === ROWS.length - 1;
+        Charts.line(host, { series: R.series, band: R.band, x0: X0, x1, fmt: f0, yMax: R.yMax, yZero: !!R.yZero, height: last ? 104 : 82, ticks: 2,
+          noXAxis: !last, noLegend: true, noTip: true, endLabel: false, marginL: 34, marginR: 10, marginT: 8,
+          group: grp, groupKey: R.key, onPick: openDay, aria: R.label });
       });
-
-    const slS = [{ label: 'Оценка сна', color: 'var(--s1)', pts: pts(dP, 'sleepScore'), fmt: f0 }];
-    card(g, 'Оценка сна', 'Балл Garmin из 100',
-      (el) => Charts.line(el, { series: slS, x0, x1, fmt: f0, yMax: 100, yZero: false,
-        extra: (t) => { const d = dP.find(q => q.t === t); return d && d.sleepMin != null ? [{ value: hm(d.sleepMin), label: 'длительность' }] : []; } }),
-      lineTable(slS));
+      const show = (t) => {
+        const d = (t != null && byT.get(t)) || lastDay;
+        for (const [R, v, sb] of cells) { v.textContent = d ? R.val(d) : '—'; sb.textContent = d ? R.sub(d) : ''; }
+        if (leadEl) leadEl.textContent = d ? (t == null ? `${fmtDate(d.t)} — последний день с данными` : fmtDate(d.t)) : '';
+      };
+      grp.listen(show);
+      show(null);
+    }, () => ({
+      columns: [{ label: 'Дата' }, { label: 'HRV, мс', num: true }, { label: 'База HRV', num: true }, { label: 'Сон', num: true }, { label: 'Длительность', num: true },
+        { label: 'BB макс.', num: true }, { label: 'BB мин.', num: true }, { label: 'Стресс', num: true }],
+      rows: has.slice().reverse().map(d => [fmtDate(d.t), d.hrv != null ? f0(d.hrv) : null, d.hrvLow ? `${f0(d.hrvLow)}–${f0(d.hrvHigh)}` : null,
+        d.sleepScore != null ? f0(d.sleepScore) : null, d.sleepMin != null ? hm(d.sleepMin) : null, d.bbMax != null ? f0(d.bbMax) : null,
+        d.bbMin != null ? f0(d.bbMin) : null, d.stress != null ? f0(d.stress) : null]),
+    }), { wide: true });
+    leadEl = ref.card.querySelector('.card-sub');
 
     // Структура сна: по ночам, при длинном периоде — средняя за неделю
     const stages = [
@@ -2504,17 +2809,6 @@ const Charts = (() => {
       (el) => Charts.bars(el, { cats: stages, buckets: sleepBuckets, fmt: hFmt, unit: 'ч' }),
       () => ({ columns: [{ label: weekly ? 'Неделя' : 'Ночь' }, ...stages.map(s => ({ label: s.label + ', ч', num: true })), { label: 'Всего, ч', num: true }],
         rows: sleepBuckets.slice().reverse().map(b => [b.title || b.label, ...stages.map(s => hFmt(b.vals[s.key] || 0)), hFmt(stages.reduce((a, s) => a + (b.vals[s.key] || 0), 0))]) }));
-
-    const bbS = [
-      { label: 'Максимум', color: 'var(--s1)', pts: pts(dP, 'bbMax'), fmt: f0 },
-      { label: 'Минимум', color: 'var(--s2)', pts: pts(dP, 'bbMin'), fmt: f0 },
-    ];
-    card(g, 'Body Battery', 'Максимальный и минимальный заряд за день, из 100',
-      (el) => Charts.line(el, { series: bbS, x0, x1, fmt: f0, yMax: 100, yZero: true }), lineTable(bbS));
-
-    const stS = [{ label: 'Стресс', color: 'var(--s1)', pts: pts(dP, 'stress'), fmt: f0 }];
-    card(g, 'Стресс', 'Средний уровень за сутки, из 100',
-      (el) => Charts.line(el, { series: stS, x0, x1, fmt: f0, yMax: 100, yZero: true }), lineTable(stS));
   }
 
   // Группировка по неделям (с понедельника)
@@ -2534,19 +2828,19 @@ const Charts = (() => {
   function renderLoad(dP, actsP, x0, x1, X) {
     const g = section('load', 'Нагрузка', 'Готовность, острая и хроническая нагрузка, активности и статус тренированности.');
     const rS = [{ label: 'Готовность', color: 'var(--s1)', pts: pts(dP, 'readiness'), fmt: f0 }];
-    card(g, 'Готовность к тренировке', 'Утренняя оценка Garmin, из 100',
-      (el) => Charts.line(el, { series: rS, x0, x1, fmt: f0, yMax: 100, yZero: true,
+    card(g, 'Готовность к тренировке', { note: 'Утренняя оценка Garmin, из 100. Нажмите на день — откроется панель дня.' },
+      (el) => Charts.line(el, { series: rS, x0, x1, fmt: f0, yMax: 100, yZero: true, onPick: openDay,
         extra: (t) => { const d = dP.find(q => q.t === t); return d && d.readinessLevel ? [{ value: RU.level[d.readinessLevel] || d.readinessLevel, label: 'уровень' }] : []; } }),
       lineTable(rS));
 
     const lS = [
       { label: 'Острая (расчёт)', color: 'var(--s1)', pts: pts(dP, 'loadAcuteCalc'), fmt: f0 },
       { label: 'Хроническая (расчёт)', color: 'var(--s2)', pts: pts(dP, 'loadChronicCalc'), fmt: f0 },
-      { label: 'Острая Garmin', color: 'var(--s3)', pts: pts(dP, 'loadAcute'), fmt: f0 },
-      { label: 'Хроническая Garmin', color: 'var(--s4)', pts: pts(dP, 'loadChronic'), fmt: f0 },
+      { label: 'Острая Garmin', color: 'var(--s3)', pts: pts(dP, 'loadAcute'), fmt: f0, optional: true },
+      { label: 'Хроническая Garmin', color: 'var(--s4)', pts: pts(dP, 'loadChronic'), fmt: f0, optional: true },
     ];
-    card(g, 'Тренировочная нагрузка', 'Острая выше хронической — нагрузка растёт; сильно выше — риск перегрузки',
-      (el) => Charts.line(el, { series: lS, x0, x1, fmt: f0, yZero: true,
+    card(g, 'Тренировочная нагрузка', { note: ['Острая выше хронической — нагрузка растёт; сильно выше — риск перегрузки.', 'Линии Garmin включаются кнопками в легенде; значения Garmin есть только в днях из полного экспорта.'] },
+      (el) => Charts.line(el, { series: lS, x0, x1, fmt: f0, yZero: true, toggleKey: 'load', onPick: openDay,
         extra: (t) => { const d = dP.find(q => q.t === t); return d && d.acwrCalc != null ? [{ value: N2.format(d.acwrCalc), label: 'ACWR (расчёт)' }] : []; } }),
       lineTable(lS));
 
@@ -2554,13 +2848,13 @@ const Charts = (() => {
     // Основная линия — собственный расчёт (acwrCalc, enrichDaily): он есть и для дней из API; Garmin — для сравнения
     const aS = [
       { label: 'ACWR (расчёт)', color: 'var(--s1)', pts: pts(dP, 'acwrCalc'), fmt: (v) => N2.format(v) },
-      { label: 'ACWR Garmin', color: 'var(--s2)', pts: pts(dP, 'acwr'), fmt: (v) => N2.format(v) },
+      { label: 'ACWR Garmin', color: 'var(--s2)', pts: pts(dP, 'acwr'), fmt: (v) => N2.format(v), optional: true },
     ];
     const lastA = lastOf(dP, 'acwrCalc');
     const zoneOf = (v) => (v == null ? '—' : v < 0.8 ? 'ниже 0,8 — недогруз' : v <= RULE.acwr ? 'коридор плана 0,8–1,3' : v <= 1.5 ? '1,3–1,5 — повышенная' : 'выше 1,5 — риск перегрузки');
     const aCard = card(g, 'Соотношение острой и хронической нагрузки (ACWR)',
       lastA ? `Сейчас ${N2.format(lastA.acwrCalc)} (${fmtDate(lastA.t)}): ${zoneOf(lastA.acwrCalc)}` : 'Острая ÷ хроническая нагрузка',
-      (el) => Charts.line(el, { series: aS, x0, x1, fmt: (v) => N2.format(v), include: [0.6, 1.6], yZero: true, ticks: 6, height: 230,
+      (el) => Charts.line(el, { series: aS, x0, x1, fmt: (v) => N2.format(v), include: [0.6, 1.6], yZero: true, ticks: 6, height: 230, toggleKey: 'acwr', onPick: openDay,
         zones: [
           { lo: 0, hi: 0.8, tone: 'none', label: 'недогруз < 0,8' },
           { lo: 0.8, hi: RULE.acwr, tone: 'good', label: 'коридор плана 0,8–1,3' },
@@ -2570,7 +2864,8 @@ const Charts = (() => {
         extra: (t) => { const d = dP.find(q => q.t === t); return d ? [{ value: zoneOf(d.acwrCalc), label: '' }, ...(d.acwrStatus ? [{ value: RU.acwr[d.acwrStatus] || d.acwrStatus, label: 'статус Garmin' }] : [])] : []; } }),
       () => ({ columns: [{ label: 'Дата' }, { label: 'ACWR расчёт', num: true }, { label: 'Зона (план)' }, { label: 'ACWR Garmin', num: true }, { label: 'Статус Garmin' }],
         rows: dP.filter(d => d.acwrCalc != null || d.acwr != null).slice().reverse().map(d => [fmtDate(d.t), d.acwrCalc != null ? N2.format(d.acwrCalc) : '—', zoneOf(d.acwrCalc), d.acwr != null ? N2.format(d.acwr) : '—', RU.acwr[d.acwrStatus] || d.acwrStatus || '—']) }));
-    aCard.card.querySelector('.card-sub').after(h('p', 'card-sub', 'Светофор берёт расчёт: Garmin не отдаёт ACWR через API. Расчёт по нагрузке тренировок воспроизводит ACWR Garmin со средней ошибкой 0,12. Garmin считает оптимумом до 1,5, план — до 1,3; зоны на графике по плану.'));
+    aCard.addNote('Линия Garmin включается кнопкой в легенде.');
+    aCard.addNote(('Светофор берёт расчёт: Garmin не отдаёт ACWR через API. Расчёт по нагрузке тренировок воспроизводит ACWR Garmin со средней ошибкой 0,12. Garmin считает оптимумом до 1,5, план — до 1,3; зоны на графике по плану.'));
 
     // Активности по неделям, минут
     const long = state.period === 'all' && actsP.length && (actsP.at(-1).t - actsP[0].t) / DAY > 840;
@@ -2670,7 +2965,7 @@ const Charts = (() => {
       const steps = X.daily.filter(d => d.t >= a && d.t < b && d.steps != null).map(d => d.steps);
       return { w, a, started, cur: started && today < b, strength: cntT(PLAN_KIND.strength), squash: cntT(PLAN_KIND.squash), swim: cntT(PLAN_KIND.swim), z2: acts.filter(isZ2).length, steps: steps.length ? mean(steps) : null, stepDays: steps.length };
     });
-    card(g, 'Недели плана: задание и факт', `Факт — из тренировок Garmin (без исключённых). Сессии: факт / план на неделю. Зона 2 — кардио от 25 мин со средним пульсом ${zone2Summary()}.`,
+    card(g, 'Недели плана: задание и факт', { note: `Факт — из тренировок Garmin (без исключённых). Сессии: факт / план на неделю. Зона 2 — кардио от 25 мин со средним пульсом ${zone2Summary()}.` },
       (el) => {
         el.replaceChildren();
         const wrap = h('div', 'table-wrap');
@@ -2754,7 +3049,7 @@ const Charts = (() => {
         el.appendChild(host);
         Charts.strip(host, stP.map(d => ({ t: d.t, tone: STATUS_TONE[d.trainingStatus] || 'none', title: fmtDate(d.t),
           rows: [{ value: RU.status[d.trainingStatus] || d.trainingStatus, label: '' }, ...(d.vo2 != null ? [{ value: f0(d.vo2), label: 'VO2max, измерение' }] : [])] })),
-          x0 ?? (stP[0] && stP[0].t), x1, { aria: 'Статус тренированности по дням', emptyText: 'Нет статуса за период' });
+          x0 ?? (stP[0] && stP[0].t), x1, { aria: 'Статус тренированности по дням', emptyText: 'Нет статуса за период', onPick: openDay });
         el.appendChild(h('p', 'note', 'Зелёный — продуктивный или пик формы; серый — поддержание или восстановление; жёлтый — непродуктивный или потеря формы; красный — перенапряжение или перегрузка. Для периодизации: затяжной жёлтый — добавить объём или интенсивность, красный — разгрузочная неделя.'));
       }, null);
   }
@@ -2812,13 +3107,13 @@ const Charts = (() => {
   function renderCardio(dP, X, x0, x1) {
     const g = section('cardio', 'Кардио', 'Пульс покоя, VO2max и фитнес-возраст — база для периодизации.');
     const rS = [{ label: 'Пульс покоя', color: 'var(--s1)', pts: pts(dP, 'rhr'), fmt: f0 }];
-    card(g, 'Пульс покоя, уд/мин', 'Суточная оценка Garmin',
-      (el) => Charts.line(el, { series: rS, x0, x1, fmt: f0, unit: 'уд/мин' }), lineTable(rS));
+    card(g, 'Пульс покоя, уд/мин', { note: 'Суточная оценка Garmin. Нажмите на день — откроется панель дня.' },
+      (el) => Charts.line(el, { series: rS, x0, x1, fmt: f0, unit: 'уд/мин', onPick: openDay }), lineTable(rS));
 
     const vAll = X.daily.filter(d => d.vo2 != null);
     const vS = [{ label: 'VO2max', color: 'var(--s1)', pts: vAll.map(d => [d.t, d.vo2]), lineless: true, fmt: f0 }];
     const lastV = vAll.at(-1);
-    card(g, 'VO2max, мл/кг/мин', `Вся история, независимо от периода: измерения редкие (${vAll.length})${lastV ? `, последнее ${fmtDate(lastV.t)}` : ''}`,
+    card(g, 'VO2max, мл/кг/мин', { lead: lastV ? `Последнее ${f0(lastV.vo2)} (${fmtDate(lastV.t)})` : '', note: `Вся история, независимо от периода: измерения редкие (${vAll.length}).` },
       (el) => Charts.line(el, { series: vS, fmt: f0, endLabel: false,
         emptyText: lastV ? `За период измерений нет. Последнее: ${f0(lastV.vo2)} (${fmtDate(lastV.t)})` : 'Нет измерений' }),
       lineTable(vS));
@@ -2827,18 +3122,18 @@ const Charts = (() => {
     const eAll = X.daily.filter(d => d.endur != null);
     const eS = [{ label: 'Выносливость', color: 'var(--s1)', pts: eAll.map(d => [d.t, d.endur]), fmt: f0, gapMs: 8 * DAY }];
     const lastE = eAll.at(-1);
-    const eCard = card(g, 'Выносливость, баллы', lastE ? `Оценка Garmin (Endurance Score). Вся история, независимо от периода · сейчас ${f0(lastE.endur)} (${fmtDate(lastE.t)})` : 'Оценка Garmin (Endurance Score)',
+    const eCard = card(g, 'Выносливость, баллы', { lead: lastE ? `Сейчас ${f0(lastE.endur)} (${fmtDate(lastE.t)})` : '', note: 'Оценка Garmin (Endurance Score). Вся история, независимо от периода; обновляется с полным экспортом Garmin.' },
       (el) => Charts.line(el, { series: eS, fmt: f0, yZero: false, emptyText: 'Нет данных — загрузите полный экспорт Garmin (ZIP): через API оценка не приходит',
         extra: (t) => { const d = eAll.find(q => q.t === t); return d && d.endurBy ? d.endurBy.slice().sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => ({ value: `${f0(v)}%`, label: endurName(k) })) : []; } }),
       lineTable(eS));
     if (lastE && lastE.endurBy && lastE.endurBy.length) {
-      eCard.card.querySelector('.card-sub').after(h('p', 'card-sub', 'Вклад на ' + fmtDate(lastE.t) + ': '
+      eCard.addNote(('Вклад на ' + fmtDate(lastE.t) + ': '
         + lastE.endurBy.slice().sort((a, b) => b[1] - a[1]).map(([k, v]) => `${endurName(k)} ${f0(v)}%`).join(' · ')));
     }
 
     const chrono = lastOf(X.daily, 'chronoAge');
     const fS = [{ label: 'Фитнес-возраст', color: 'var(--s1)', pts: pts(dP, 'fitAge'), fmt: f1, gapMs: 8 * DAY }];
-    card(g, 'Фитнес-возраст, лет', chrono ? `Оценка Garmin; паспортный возраст — ${f0(chrono.chronoAge)}` : 'Оценка Garmin',
+    card(g, 'Фитнес-возраст, лет', { lead: chrono ? `Паспортный возраст — ${f0(chrono.chronoAge)}` : '', note: 'Оценка Garmin' },
       (el) => Charts.line(el, { series: fS, x0, x1, fmt: f1 }), lineTable(fS));
   }
 
@@ -2900,7 +3195,7 @@ const Charts = (() => {
       (el) => Charts.bars(el, { cats, buckets, fmt: f0, unit: 'ккал', aria: 'Расход энергии', emptyText: 'Нет данных о калориях — загрузите свежий экспорт Garmin или файл Garmin API' }),
       () => ({ columns: [{ label: weekly ? 'Неделя' : 'День' }, { label: 'Базовый обмен', num: true }, { label: 'Активные', num: true }, { label: 'Всего', num: true }],
         rows: buckets.slice().reverse().map(b => [b.title || b.label, f0(b.vals.bmr), f0(b.vals.act), f0(b.vals.bmr + b.vals.act)]) }));
-    if (rows.length) c.card.querySelector('.card-sub').after(h('p', 'card-sub', 'Активные калории — оценка Garmin по пульсу и движению, дефицит ориентировочный.'));
+    if (rows.length) c.addNote(('Активные калории — оценка Garmin по пульсу и движению, дефицит ориентировочный.'));
   }
 
   function renderBp(bpP, X, x0, x1) {
@@ -5173,7 +5468,7 @@ const Charts = (() => {
     /* ---------------- версия сайта */
     // build.py подставляет в BUILD дату и время сборки и кладёт то же значение в web/version.json.
     // В исходнике dashboard.html метка остаётся как есть — показываем «исходник».
-    const BUILD = '2026-11-15 08:16';
+    const BUILD = '2026-11-15 08:47';
     const isBuilt = !BUILD.startsWith('__');
     const buildLabel = isBuilt ? BUILD : 'исходник';
     const verUrl = /\/app\/?(index\.html)?$/.test(location.pathname) ? '../version.json' : 'version.json';
@@ -5369,7 +5664,10 @@ const Charts = (() => {
     const setMenu = (open) => { menu.hidden = !open; mbtn.setAttribute('aria-expanded', String(open)); };
     mbtn.onclick = (e) => { e.stopPropagation(); setMenu(menu.hidden); };
     document.addEventListener('click', (e) => { if (!menu.hidden && !e.target.closest('#btn-theme')) setMenu(false); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); mbtn.focus(); } });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!menu.hidden) { setMenu(false); mbtn.focus(); } else if (dayEl && !dayEl.hidden) closeDay();
+    });
     document.querySelector('.topbar').addEventListener('click', (e) => {
       const a = e.target.closest('a[href^="#"]');
       if (!a) return;
